@@ -22,8 +22,8 @@ fn rep(s: []const u8, alloc: *Allocator) ![]const u8 {
 }
 
 pub fn main() !void {
-    const stdout_file = try std.io.getStdOut();
-    const stdin_file = try std.io.getStdIn();
+    const stdout_file = std.io.getStdOut();
+    const stdin_file = std.io.getStdIn();
     const stdin_stream = &stdin_file.inStream().stream;
 
     var arena = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
