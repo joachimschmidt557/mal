@@ -30,6 +30,7 @@ pub const MalType = union(enum) {
     MalSymbol: []const u8,
     MalVector: std.TailQueue(MalType),
     MalHashMap: std.StringHashMap(MalType),
+    MalIntegerFunction: fn(x: i64, y: i64) i64,
 
     const Self = @This();
 

@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const types = @import("types.zig");
+const MalType = types.MalType;
 const SequenceType = types.SequenceType;
 
 pub const Token = []const u8;
@@ -27,7 +28,7 @@ pub const Reader = struct {
 };
 
 /// Reads a string into internal mal representation
-pub fn read_str(s: []const u8, alloc: *Allocator) !types.MalType {
+pub fn read_str(s: []const u8, alloc: *Allocator) !MalType {
     const tokens = try tokenize(s, alloc);
 
     const reader = &Reader{
@@ -197,21 +198,21 @@ pub const ReadError = std.mem.Allocator.Error || error{
     UnevenHashMap,
 };
 
-fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!types.MalType {
-    var result = std.TailQueue(types.MalType).init();
+fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
+    var result = std.TailQueue(MalType).init();
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
     const itm = try read_form(r, alloc);
 
-    result.append(try result.createNode(types.MalType{ .MalSymbol = name }, alloc));
+    result.append(try result.createNode(MalType{ .MalSymbol = name }, alloc));
     result.append(try result.createNode(itm, alloc));
 
-    return types.MalType{ .MalList = result };
+    return MalType{ .MalList = result };
 }
 
-fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!types.MalType {
-    var result = std.TailQueue(types.MalType).init();
+fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
+    var result = std.TailQueue(MalType).init();
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
@@ -221,15 +222,15 @@ fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!typ
     if (r.peek()) |_| {} else return error.Underflow;
     const itm = try read_form(r, alloc);
 
-    result.append(try result.createNode(types.MalType{ .MalSymbol = name }, alloc));
+    result.append(try result.createNode(MalType{ .MalSymbol = name }, alloc));
     result.append(try result.createNode(itm, alloc));
     result.append(try result.createNode(meta, alloc));
 
-    return types.MalType{ .MalList = result };
+    return MalType{ .MalList = result };
 }
 
 /// Reads the next full piece
-pub fn read_form(r: *Reader, alloc: *Allocator) ReadError!types.MalType {
+pub fn read_form(r: *Reader, alloc: *Allocator) ReadError!MalType {
     if (r.peek()) |tok| {
         if (std.mem.eql(u8, tok, "(")) {
             _ = r.next();
@@ -268,13 +269,13 @@ pub fn read_form(r: *Reader, alloc: *Allocator) ReadError!types.MalType {
             return read_atom(r, alloc);
         }
     } else {
-        return types.MalType{ .MalNil = {} };
+        return MalType{ .MalNil = {} };
     }
 }
 
 /// Reads a hash map starting with the first key
-fn read_map(r: *Reader, alloc: *Allocator) ReadError!types.MalType {
-    var result = std.StringHashMap(types.MalType).init(alloc);
+fn read_map(r: *Reader, alloc: *Allocator) ReadError!MalType {
+    var result = std.StringHashMap(MalType).init(alloc);
 
     // Reading in two stages: First read key, then read value
     var key: ?[]const u8 = null;
@@ -307,12 +308,12 @@ fn read_map(r: *Reader, alloc: *Allocator) ReadError!types.MalType {
     // number of elements here
     if (key) |_| return error.UnevenHashMap;
 
-    return types.MalType{ .MalHashMap = result };
+    return MalType{ .MalHashMap = result };
 }
 
 /// Reads a list or a vector starting with the first element
-fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!types.MalType {
-    var result = std.TailQueue(types.MalType).init();
+fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!MalType {
+    var result = std.TailQueue(MalType).init();
 
     while (true) {
         if (r.peek()) |tok| {
@@ -329,8 +330,8 @@ fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!ty
     }
 
     return switch(seq_type) {
-       .List => types.MalType{ .MalList = result },
-       .Vector => types.MalType{ .MalVector = result },
+       .List => MalType{ .MalList = result },
+       .Vector => MalType{ .MalVector = result },
     };
 }
 
@@ -370,39 +371,39 @@ pub fn unescape(s: []const u8, alloc: *Allocator) ![]const u8 {
 }
 
 /// Reads a mal atom
-fn read_atom(r: *Reader, alloc: *Allocator) !types.MalType {
+fn read_atom(r: *Reader, alloc: *Allocator) !MalType {
     if (r.next()) |tok| {
         if (std.mem.eql(u8, tok, "nil"))
-            return types.MalType{ .MalNil = {} };
+            return MalType{ .MalNil = {} };
         if (std.mem.eql(u8, tok, "true"))
-            return types.MalType{ .MalBoolean = true };
+            return MalType{ .MalBoolean = true };
         if (std.mem.eql(u8, tok, "false"))
-            return types.MalType{ .MalBoolean = false };
+            return MalType{ .MalBoolean = false };
 
         // A not-cool hack to prevent "+" and "-"
         // from being parsed as integers
         if (std.mem.eql(u8, tok, "+"))
-            return types.MalType{ .MalSymbol = tok };
+            return MalType{ .MalSymbol = tok };
         if (std.mem.eql(u8, tok, "-"))
-            return types.MalType{ .MalSymbol = tok };
+            return MalType{ .MalSymbol = tok };
 
         if (std.fmt.parseInt(i64, tok, 10)) |x| {
-            return types.MalType{ .MalInteger = x };
+            return MalType{ .MalInteger = x };
         } else |err| {
             if (std.mem.startsWith(u8, tok, "\"")) {
                 // Strings
-                return types.MalType{ .MalString = try unescape(tok, alloc) };
+                return MalType{ .MalString = try unescape(tok, alloc) };
             } else if (std.mem.startsWith(u8, tok, ":")) {
                 // Keywords
-                return types.MalType{
+                return MalType{
                     .MalString = try std.fmt.allocPrint(alloc, "\u{29e}{}", tok[1..])
                 };
             } else {
                 // Symbols
-                return types.MalType{ .MalSymbol = tok };
+                return MalType{ .MalSymbol = tok };
             }
         }
     } else {
-        return types.MalType{ .MalNil = {} };
+        return MalType{ .MalNil = {} };
     }
 }
