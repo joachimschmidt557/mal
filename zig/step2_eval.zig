@@ -27,33 +27,25 @@ fn EVAL(ast: MalType, env: Env, alloc: *Allocator) EvalError!MalType {
             } else {
                 const evaluated = try eval_ast(ast, env, alloc);
 
-                switch (evaluated) {
-                    .MalList => |evaluated_list| {
-                        if (evaluated_list.first) |first| {
-                            switch (first.data) {
-                                .MalIntegerFunction => |f| {
-                                    const second = first.next orelse return error.MissingOperands;
-                                    const third = second.next orelse return error.MissingOperands;
+                // We can guarantee that the expression is a list
+                // We can guarantee that the list is not empty
+                const first = evaluated.MalList.first.?;
+                switch (first.data) {
+                    .MalIntegerFunction => |f| {
+                        const second = first.next orelse return error.MissingOperands;
+                        const third = second.next orelse return error.MissingOperands;
 
-                                    if (second.data != .MalInteger) return error.NonIntegerOperands;
-                                    if (third.data != .MalInteger) return error.NonIntegerOperands;
+                        if (second.data != .MalInteger) return error.NonIntegerOperands;
+                        if (third.data != .MalInteger) return error.NonIntegerOperands;
 
-                                    const x = second.data.MalInteger;
-                                    const y = third.data.MalInteger;
+                        const x = second.data.MalInteger;
+                        const y = third.data.MalInteger;
 
-                                    return MalType{ .MalInteger = f(x, y) };
-                                },
-                                else => return error.ApplicationOfNonFunction,
-                            }
-                        } else {
-                            // We can guarantee that the list is not empty
-                            unreachable;
-                        }
-                    },
-                    // We can guarantee that the expression is a list
-                    else => unreachable,
+                            return MalType{ .MalInteger = f(x, y) };
+                        },
+                        else => return error.ApplicationOfNonFunction,
+                    }
                 }
-            }
         },
         else => return try eval_ast(ast, env, alloc),
     }
