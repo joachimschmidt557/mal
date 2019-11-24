@@ -23,12 +23,12 @@ pub const SequenceType = enum {
 
 pub const MalType = union(enum) {
     MalNil: void,
-    MalList: std.TailQueue(MalType),
+    MalList: std.ArrayList(MalType),
     MalString: []const u8,
     MalInteger: i64,
     MalBoolean: bool,
     MalSymbol: []const u8,
-    MalVector: std.TailQueue(MalType),
+    MalVector: std.ArrayList(MalType),
     MalHashMap: std.StringHashMap(MalType),
     MalIntegerFunction: fn(x: i64, y: i64) i64,
 
@@ -38,5 +38,19 @@ pub const MalType = union(enum) {
         switch (self) {
             else => return,
         }
+    }
+
+    pub fn name(self: Self) []const u8 {
+        return switch (self) {
+            MalNil => "nil",
+            MalList => "list",
+            MalString => "string",
+            MalInteger => "int",
+            MalBoolean => "bool",
+            MalSymbol => "symbol",
+            MalVector => "vector",
+            MalHashMap => "hashmap",
+            MalIntegerFunction => "builtin_fn",
+        };
     }
 };

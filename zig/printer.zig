@@ -60,7 +60,7 @@ pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]
         .MalInteger => |value| return try std.fmt.allocPrint(alloc, "{}", value),
         .MalBoolean => |value| if (value) return "true" else return "false",
         .MalSymbol => |value| return value,
-        else => return "",
+        .MalIntegerFunction => return "<builtin fn>",
     }
 }
 
@@ -98,19 +98,20 @@ fn pr_map(map: std.StringHashMap(MalType), alloc: *Allocator, print_readably: bo
 }
 
 /// Formats lists and vectors
-fn pr_seq(list: std.TailQueue(MalType), alloc: *Allocator, seq_type: SequenceType, print_readably: bool) PrintError![]const u8 {
+fn pr_seq(list: std.ArrayList(MalType), alloc: *Allocator, seq_type: SequenceType, print_readably: bool) PrintError![]const u8 {
     var result = std.ArrayList(u8).init(alloc);
 
     try result.appendSlice(seq_type.startToken());
-    var itm = list.first;
-    while (true) {
-        if (itm) |value| {
-            if (itm != list.first) try result.append(' ');
-            try result.appendSlice(try pr_str(value.data, alloc, print_readably));
-            itm = value.next;
+    var first_itm = true;
+    var iter = list.iterator();
+    while (iter.next()) |value| {
+        if (first_itm) {
+            first_itm = false;
         } else {
-            break;
+            try result.append(' ');
         }
+
+        try result.appendSlice(try pr_str(value, alloc, print_readably));
     }
     try result.appendSlice(seq_type.endToken());
 

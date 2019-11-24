@@ -29,23 +29,24 @@ fn EVAL(ast: MalType, env: Env, alloc: *Allocator) EvalError!MalType {
 
                 // We can guarantee that the expression is a list
                 // We can guarantee that the list is not empty
-                const first = evaluated.MalList.first.?;
-                switch (first.data) {
+                const l = evaluated.MalList;
+                switch (l.at(0)) {
                     .MalIntegerFunction => |f| {
-                        const second = first.next orelse return error.MissingOperands;
-                        const third = second.next orelse return error.MissingOperands;
+                        if (l.len < 3) return error.MissingOperands;
+                        const second = l.at(1);
+                        const third = l.at(2);
 
-                        if (second.data != .MalInteger) return error.NonIntegerOperands;
-                        if (third.data != .MalInteger) return error.NonIntegerOperands;
+                        if (second != .MalInteger) return error.NonIntegerOperands;
+                        if (third != .MalInteger) return error.NonIntegerOperands;
 
-                        const x = second.data.MalInteger;
-                        const y = third.data.MalInteger;
+                        const x = second.MalInteger;
+                        const y = third.MalInteger;
 
-                            return MalType{ .MalInteger = f(x, y) };
-                        },
-                        else => return error.ApplicationOfNonFunction,
-                    }
+                        return MalType{ .MalInteger = f(x, y) };
+                    },
+                    else => return error.ApplicationOfNonFunction,
                 }
+            }
         },
         else => return try eval_ast(ast, env, alloc),
     }
@@ -63,16 +64,11 @@ fn eval_ast(ast: MalType, env: Env, alloc: *Allocator) EvalError!MalType {
             return error.SymbolNotFound;
         },
         .MalList, .MalVector => |list| {
-            var result = std.TailQueue(MalType).init();
+            var result = std.ArrayList(MalType).init(alloc);
 
-            var itm = list.first;
-            while (true) {
-                if (itm) |value| {
-                    result.append(try result.createNode(try EVAL(value.data, env, alloc), alloc));
-                    itm = value.next;
-                } else {
-                    break;
-                }
+            var iter = list.iterator();
+            while (iter.next()) |value| {
+                try result.append(try EVAL(value, env, alloc));
             }
 
             return switch (ast) {
@@ -160,7 +156,7 @@ pub fn main() !void {
                     try stdout_file.write("error: missing operands\n");
                     continue;
                 },
-                 error.NonIntegerOperands => {
+                error.NonIntegerOperands => {
                     try stdout_file.write("error: integer functions expect integer arguments\n");
                     continue;
                 },

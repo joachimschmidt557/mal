@@ -199,20 +199,20 @@ pub const ReadError = std.mem.Allocator.Error || error{
 };
 
 fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
-    var result = std.TailQueue(MalType).init();
+    var result = std.ArrayList(MalType).init(alloc);
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
     const itm = try read_form(r, alloc);
 
-    result.append(try result.createNode(MalType{ .MalSymbol = name }, alloc));
-    result.append(try result.createNode(itm, alloc));
+    try result.append(MalType{ .MalSymbol = name });
+    try result.append(itm);
 
     return MalType{ .MalList = result };
 }
 
 fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
-    var result = std.TailQueue(MalType).init();
+    var result = std.ArrayList(MalType).init(alloc);
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
@@ -222,9 +222,9 @@ fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!Mal
     if (r.peek()) |_| {} else return error.Underflow;
     const itm = try read_form(r, alloc);
 
-    result.append(try result.createNode(MalType{ .MalSymbol = name }, alloc));
-    result.append(try result.createNode(itm, alloc));
-    result.append(try result.createNode(meta, alloc));
+    try result.append(MalType{ .MalSymbol = name });
+    try result.append(itm);
+    try result.append(meta);
 
     return MalType{ .MalList = result };
 }
@@ -313,7 +313,7 @@ fn read_map(r: *Reader, alloc: *Allocator) ReadError!MalType {
 
 /// Reads a list or a vector starting with the first element
 fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!MalType {
-    var result = std.TailQueue(MalType).init();
+    var result = std.ArrayList(MalType).init(alloc);
 
     while (true) {
         if (r.peek()) |tok| {
@@ -321,8 +321,7 @@ fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!Ma
                 _ = r.next();
                 break;
             } else {
-                const new_node = try result.createNode(try read_form(r, alloc), alloc);
-                result.append(new_node);
+                try result.append(try read_form(r, alloc));
             }
         } else {
             return error.UnbalancedParenthesis;
