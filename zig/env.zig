@@ -22,6 +22,10 @@ pub const Env = struct {
 
     /// Destroys this environment (but not outer environment(s))
     pub fn deinit(self: *Self) void {
+        var iter = self.data.iterator();
+        while (iter.next()) |kv| {
+            kv.value.deinit();
+        }
         self.data.deinit();
     }
 

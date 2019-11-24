@@ -23,6 +23,7 @@ pub const SequenceType = enum {
 
 pub const MalType = union(enum) {
     MalNil: void,
+    MalErrorStr: []const u8,
     MalList: std.ArrayList(MalType),
     MalString: []const u8,
     MalInteger: i64,
@@ -34,9 +35,19 @@ pub const MalType = union(enum) {
 
     const Self = @This();
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: Self) void {
         switch (self) {
-            else => return,
+            .MalList, .MalVector => |list| {
+                var iter = list.iterator();
+                while (iter.next()) |x| x.deinit();
+                list.deinit();
+            },
+            .MalHashMap => |map| {
+                var iter = map.iterator();
+                while (iter.next()) |kv| kv.value.deinit();
+                map.deinit();
+            },
+            else => {},
         }
     }
 

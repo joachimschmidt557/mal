@@ -45,6 +45,7 @@ pub fn escape(s: []const u8, alloc: *Allocator) ![]const u8 {
 pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]const u8 {
     switch (x) {
         .MalNil => return "nil",
+        .MalErrorStr => |err_str| return try pr_errorstr(err_str, alloc),
         .MalString => |value| {
             if (std.mem.startsWith(u8, value, "\u{29e}")) {
                 return try pr_keyword(value, alloc);
@@ -62,6 +63,11 @@ pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]
         .MalSymbol => |value| return value,
         .MalIntegerFunction => return "<builtin fn>",
     }
+}
+
+/// Formats an error
+fn pr_errorstr(s: []const u8, alloc: *Allocator) ![]const u8 {
+    return try std.fmt.allocPrint(alloc, "error: {}", s);
 }
 
 /// Formats keywords
