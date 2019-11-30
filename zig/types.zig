@@ -1,4 +1,6 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
+const StringHashMap = std.StringHashMap;
 
 pub const SequenceType = enum {
     List,
@@ -24,19 +26,20 @@ pub const SequenceType = enum {
 pub const MalType = union(enum) {
     MalNil: void,
     MalErrorStr: []const u8,
-    MalList: std.ArrayList(MalType),
+    MalList: ArrayList(MalType),
     MalString: []const u8,
     MalInteger: i64,
     MalBoolean: bool,
     MalSymbol: []const u8,
-    MalVector: std.ArrayList(MalType),
-    MalHashMap: std.StringHashMap(MalType),
+    MalVector: ArrayList(MalType),
+    MalHashMap: StringHashMap(MalType),
     MalIntegerFunction: fn(x: i64, y: i64) i64,
 
     const Self = @This();
 
     pub fn deinit(self: Self) void {
         switch (self) {
+            //.MalErrorStr => |s| 
             .MalList, .MalVector => |list| {
                 var iter = list.iterator();
                 while (iter.next()) |x| x.deinit();

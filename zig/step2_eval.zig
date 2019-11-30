@@ -162,6 +162,7 @@ pub fn main() !void {
                 },
                 else => return err,
             };
+            defer allocator.free(result);
 
             try stdout_file.write(result);
             try stdout_file.write("\n");

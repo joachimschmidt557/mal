@@ -188,6 +188,7 @@ pub fn main() !void {
     try repl_env.set("-", MalType{ .MalIntegerFunction = sub });
     try repl_env.set("*", MalType{ .MalIntegerFunction = mul });
     try repl_env.set("/", MalType{ .MalIntegerFunction = div });
+    defer repl_env.deinit();
 
     // Buffer for line reading
     var buf = try std.Buffer.initSize(allocator, std.mem.page_size);
@@ -220,6 +221,7 @@ pub fn main() !void {
                 },
                 else => return err,
             };
+            defer allocator.free(result);
 
             try stdout_file.write(result);
             try stdout_file.write("\n");
