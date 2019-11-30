@@ -47,27 +47,27 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                     const symbol = list.at(0).MalSymbol;
                     if (std.mem.eql(u8, symbol, "def!")) {
                         // Change current environment
-                        if (list.len < 3) return err_missing_operands;
+                        if (list.len < 3) return try err_missing_operands.copy(alloc);
                         const second = list.at(1);
                         const third = list.at(2);
 
-                        if (second != .MalSymbol) return err_defining_non_symbol;
+                        if (second != .MalSymbol) return try err_defining_non_symbol.copy(alloc);
 
                         const key = second.MalSymbol;
                         const value = try EVAL(third, env, alloc);
                         if (value == .MalErrorStr) return value;
 
-                        try env.set(key, value);
+                        try env.set(key, try value.copy(alloc));
                         return value;
                     } else if (std.mem.eql(u8, symbol, "let*")) {
                         // New environment
-                        if (list.len < 3) return err_missing_operands;
+                        if (list.len < 3) return try err_missing_operands.copy(alloc);
                         const second = list.at(1);
                         const third = list.at(2);
 
                         const new_bindings = switch (second) {
                             .MalList, .MalVector => |l| l,
-                            else => return err_let_binding_non_list,
+                            else => return try err_let_binding_non_list.copy(alloc),
                         };
                         const new_env = &Env.init(env, alloc);
                         defer new_env.deinit();
@@ -85,7 +85,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                                 key = null;
                             } else {
                                 // Read key
-                                if (itm != .MalSymbol) return err_defining_non_symbol;
+                                if (itm != .MalSymbol) return try err_defining_non_symbol.copy(alloc);
                                 key = itm.MalSymbol;
                             }
                         }
@@ -103,19 +103,19 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                 const l = evaluated.MalList;
                 switch (l.at(0)) {
                     .MalIntegerFunction => |f| {
-                        if (l.len < 3) return err_missing_operands;
+                        if (l.len < 3) return try err_missing_operands.copy(alloc);
                         const second = l.at(1);
                         const third = l.at(2);
 
-                        if (second != .MalInteger) return err_non_int_operand;
-                        if (third != .MalInteger) return err_non_int_operand;
+                        if (second != .MalInteger) return try err_non_int_operand.copy(alloc);
+                        if (third != .MalInteger) return try err_non_int_operand.copy(alloc);
 
                         const x = second.MalInteger;
                         const y = third.MalInteger;
 
                         return MalType{ .MalInteger = f(x, y) };
                     },
-                    else => return err_application_of_non_function,
+                    else => return try err_application_of_non_function.copy(alloc),
                 }
             }
         },
@@ -130,7 +130,13 @@ fn PRINT(x: MalType, alloc: *Allocator) ![]const u8 {
 fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
     switch (ast) {
         .MalErrorStr => return ast,
-        .MalSymbol => |name| return env.get(name) orelse return try errSymbolNotFound(name, alloc),
+        .MalSymbol => |name| {
+            if (env.get(name)) |val| {
+                return try val.copy(alloc);
+            } else {
+                return try errSymbolNotFound(name, alloc);
+            }
+        },
         .MalList, .MalVector => |list| {
             var result = std.ArrayList(MalType).init(alloc);
 
@@ -179,8 +185,9 @@ pub fn main() !void {
     const stdin_file = std.io.getStdIn();
     const stdin_stream = &stdin_file.inStream().stream;
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
-    const allocator = &arena.allocator;
+    //var arena = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
+    //const allocator = &arena.allocator;
+    const allocator = std.heap.page_allocator;
 
     // REPL environment
     const repl_env = &Env.init(null, allocator);

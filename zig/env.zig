@@ -7,6 +7,7 @@ const SequenceType = types.SequenceType;
 const MalType = types.MalType;
 
 pub const Env = struct {
+    allocator: *Allocator,
     outer: ?*Self,
     data: StringHashMap(MalType),
 
@@ -15,6 +16,7 @@ pub const Env = struct {
     /// Creates a new environment with an outer environment
     pub fn init(outer: ?*Self, alloc: *Allocator) Self {
         return Self{
+            .allocator = alloc,
             .outer = outer,
             .data = StringHashMap(MalType).init(alloc),
         };
@@ -24,7 +26,7 @@ pub const Env = struct {
     pub fn deinit(self: *Self) void {
         var iter = self.data.iterator();
         while (iter.next()) |kv| {
-            kv.value.deinit();
+            kv.value.deinit(self.allocator);
         }
         self.data.deinit();
     }

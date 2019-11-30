@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 
 const types = @import("types.zig");
 const MalType = types.MalType;
@@ -44,7 +45,7 @@ pub const TokenizeError = error{ UnfinishedQuote };
 
 /// Tokenizes a raw byte slice
 pub fn tokenize(s: []const u8, alloc: *Allocator) ![]Token {
-    var result = std.ArrayList(Token).init(alloc);
+    var result = ArrayList(Token).init(alloc);
 
     const State = enum {
         TopLevel,
@@ -200,7 +201,7 @@ pub const ReadError = std.mem.Allocator.Error || error{
 };
 
 fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
-    var result = std.ArrayList(MalType).init(alloc);
+    var result = ArrayList(MalType).init(alloc);
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
@@ -213,7 +214,7 @@ fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalTyp
 }
 
 fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
-    var result = std.ArrayList(MalType).init(alloc);
+    var result = ArrayList(MalType).init(alloc);
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
@@ -314,7 +315,7 @@ fn read_map(r: *Reader, alloc: *Allocator) ReadError!MalType {
 
 /// Reads a list or a vector starting with the first element
 fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!MalType {
-    var result = std.ArrayList(MalType).init(alloc);
+    var result = ArrayList(MalType).init(alloc);
 
     while (true) {
         if (r.peek()) |tok| {
@@ -337,7 +338,7 @@ fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!Ma
 
 /// Unescapes a string
 pub fn unescape(s: []const u8, alloc: *Allocator) ![]const u8 {
-    var result = std.ArrayList(u8).init(alloc);
+    var result = ArrayList(u8).init(alloc);
     
     // Remove the double quotes
     // That means we can safely assume that len >= 2
@@ -383,9 +384,11 @@ fn read_atom(r: *Reader, alloc: *Allocator) !MalType {
         // A not-cool hack to prevent "+" and "-"
         // from being parsed as integers
         if (std.mem.eql(u8, tok, "+"))
-            return MalType{ .MalSymbol = tok };
+            // Why we create a copy: see symbol handling
+            return try (MalType{ .MalSymbol = tok }).copy(alloc);
         if (std.mem.eql(u8, tok, "-"))
-            return MalType{ .MalSymbol = tok };
+            // Why we create a copy: see symbol handling
+            return try (MalType{ .MalSymbol = tok }).copy(alloc);
 
         if (std.fmt.parseInt(i64, tok, 10)) |x| {
             return MalType{ .MalInteger = x };
@@ -400,7 +403,10 @@ fn read_atom(r: *Reader, alloc: *Allocator) !MalType {
                 };
             } else {
                 // Symbols
-                return MalType{ .MalSymbol = tok };
+
+                // We are creating a copy of this string because the
+                // raw data will be discarded later
+                return try (MalType{ .MalSymbol = tok }).copy(alloc);
             }
         }
     } else {

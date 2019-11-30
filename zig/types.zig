@@ -1,5 +1,6 @@
 const std = @import("std");
 const ArrayList = std.ArrayList;
+const Allocator = std.mem.Allocator;
 const StringHashMap = std.StringHashMap;
 
 pub const SequenceType = enum {
@@ -37,34 +38,77 @@ pub const MalType = union(enum) {
 
     const Self = @This();
 
-    pub fn deinit(self: Self) void {
+    /// Recursively deinitializes this mal value
+    /// Basically the opposite to copy
+    pub fn deinit(self: Self, alloc: *Allocator) void {
         switch (self) {
-            //.MalErrorStr => |s| 
+            .MalErrorStr, .MalString, .MalSymbol => |s| alloc.free(s),
             .MalList, .MalVector => |list| {
                 var iter = list.iterator();
-                while (iter.next()) |x| x.deinit();
+                while (iter.next()) |x| x.deinit(alloc);
                 list.deinit();
             },
             .MalHashMap => |map| {
                 var iter = map.iterator();
-                while (iter.next()) |kv| kv.value.deinit();
+                while (iter.next()) |kv| {
+                    alloc.free(kv.key);
+                    kv.value.deinit(alloc);
+                }
                 map.deinit();
             },
             else => {},
         }
     }
 
+    pub const CopyError = Allocator.Error;
+
+    /// Performs a "deep copy" or recursive copy of this mal
+    /// value if applicable
+    /// Basically the opposite to deinit
+    pub fn copy(self: Self, alloc: *Allocator) CopyError!Self {
+        return switch (self) {
+            .MalErrorStr => |s| MalType{ .MalErrorStr = try std.mem.dupe(alloc, u8, s) },
+            .MalString => |s| MalType{ .MalString = try std.mem.dupe(alloc, u8, s) },
+            .MalSymbol => |s| MalType{ .MalSymbol = try std.mem.dupe(alloc, u8, s) },
+            .MalList, .MalVector => |l| blk: {
+                var result = ArrayList(MalType).init(alloc);
+
+                var iter = l.iterator();
+                while (iter.next()) |x| {
+                    try result.append(try x.copy(alloc));
+                }
+
+                break :blk switch(self) {
+                    .MalList => MalType{ .MalList = result },
+                    .MalVector => MalType{ .MalVector = result },
+                    else => unreachable,
+                };
+            },
+            .MalHashMap => |map| blk: {
+                var result = StringHashMap(MalType).init(alloc);
+                var iter = map.iterator();
+                while (iter.next()) |kv| {
+                    const key = try std.mem.dupe(alloc, u8, kv.key);
+                    const value = try kv.value.copy(alloc);
+                    _ = try result.put(key, value);
+                }
+                break :blk MalType{ .MalHashMap = result };
+            },
+            else => self,
+        };
+    }
+
     pub fn name(self: Self) []const u8 {
         return switch (self) {
-            MalNil => "nil",
-            MalList => "list",
-            MalString => "string",
-            MalInteger => "int",
-            MalBoolean => "bool",
-            MalSymbol => "symbol",
-            MalVector => "vector",
-            MalHashMap => "hashmap",
-            MalIntegerFunction => "builtin_fn",
+            .MalNil => "nil",
+            .MalList => "list",
+            .MalString => "string",
+            .MalInteger => "int",
+            .MalBoolean => "bool",
+            .MalSymbol => "symbol",
+            .MalVector => "vector",
+            .MalHashMap => "hashmap",
+            .MalIntegerFunction => "builtin_fn",
         };
     }
 };

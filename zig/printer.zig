@@ -42,9 +42,15 @@ pub fn escape(s: []const u8, alloc: *Allocator) ![]const u8 {
 }
 
 /// Formats all kinds of mal values
+/// After the conversion process of mal value to string, the mal value will
+/// be deinitialized
 pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]const u8 {
+    // We deinitialize the value after printing as it
+    // is of no use anymore
+    defer x.deinit(alloc);
+
     switch (x) {
-        .MalNil => return "nil",
+        .MalNil => return try std.fmt.allocPrint(alloc, "nil"),
         .MalErrorStr => |err_str| return try pr_errorstr(err_str, alloc),
         .MalString => |value| {
             if (std.mem.startsWith(u8, value, "\u{29e}")) {
@@ -52,16 +58,16 @@ pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]
             } else if (print_readably) {
                 return try escape(value, alloc);
             } else {
-                return value;
+                return try std.fmt.allocPrint(alloc, "{}", value);
             }
          },
         .MalList => |list| return try pr_seq(list, alloc, SequenceType.List, print_readably),
         .MalVector => |list| return try pr_seq(list, alloc, SequenceType.Vector, print_readably),
         .MalHashMap => |map| return try pr_map(map, alloc, print_readably),
         .MalInteger => |value| return try std.fmt.allocPrint(alloc, "{}", value),
-        .MalBoolean => |value| if (value) return "true" else return "false",
-        .MalSymbol => |value| return value,
-        .MalIntegerFunction => return "<builtin fn>",
+        .MalBoolean => |value| if (value) return try std.fmt.allocPrint(alloc, "true") else return try std.fmt.allocPrint(alloc, "false"),
+        .MalSymbol => |value| return try std.fmt.allocPrint(alloc, "{}", value),
+        .MalIntegerFunction => return try std.fmt.allocPrint(alloc, "<builtin fn>"),
     }
 }
 
@@ -94,9 +100,13 @@ fn pr_map(map: std.StringHashMap(MalType), alloc: *Allocator, print_readably: bo
             try result.append(' ');
         }
 
-        try result.appendSlice(try pr_str(key, alloc, print_readably));
+        // Copying of key necessary because pr_str will
+        // deinit the value after printing
+        try result.appendSlice(try pr_str(try key.copy(alloc), alloc, print_readably));
         try result.append(' ');
-        try result.appendSlice(try pr_str(kv.value, alloc, print_readably));
+        // Copying of value necessary because pr_str will
+        // deinit the value after printing
+        try result.appendSlice(try pr_str(try kv.value.copy(alloc), alloc, print_readably));
     }
     try result.append('}');
 
@@ -117,7 +127,9 @@ fn pr_seq(list: std.ArrayList(MalType), alloc: *Allocator, seq_type: SequenceTyp
             try result.append(' ');
         }
 
-        try result.appendSlice(try pr_str(value, alloc, print_readably));
+        // Copying of value necessary because pr_str will
+        // deinit the value after printing
+        try result.appendSlice(try pr_str(try value.copy(alloc), alloc, print_readably));
     }
     try result.appendSlice(seq_type.endToken());
 
