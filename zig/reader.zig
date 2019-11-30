@@ -30,6 +30,7 @@ pub const Reader = struct {
 /// Reads a string into internal mal representation
 pub fn read_str(s: []const u8, alloc: *Allocator) !MalType {
     const tokens = try tokenize(s, alloc);
+    defer alloc.free(tokens);
 
     const reader = &Reader{
         .tokens = tokens,
@@ -188,7 +189,7 @@ pub fn tokenize(s: []const u8, alloc: *Allocator) ![]Token {
         else => {},
     }
 
-    return result.toSlice();
+    return result.toOwnedSlice();
 }
 
 pub const ReadError = std.mem.Allocator.Error || error{
