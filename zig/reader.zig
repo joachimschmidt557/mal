@@ -207,7 +207,7 @@ fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalTyp
     if (r.peek()) |_| {} else return error.Underflow;
     const itm = try read_form(r, alloc);
 
-    try result.append(MalType{ .MalSymbol = name });
+    try result.append(try (MalType{ .MalSymbol = name }).copy(alloc));
     try result.append(itm);
 
     return MalType{ .MalList = result };
@@ -224,7 +224,7 @@ fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!Mal
     if (r.peek()) |_| {} else return error.Underflow;
     const itm = try read_form(r, alloc);
 
-    try result.append(MalType{ .MalSymbol = name });
+    try result.append(try (MalType{ .MalSymbol = name }).copy(alloc));
     try result.append(itm);
     try result.append(meta);
 
