@@ -32,6 +32,7 @@ pub const Env = struct {
     }
 
     /// Adds or overwrites a definition in this environment
+    /// This takes ownership of the key as well as the value
     pub fn set(self: *Self, key: []const u8, val: MalType) !void {
         _ = try self.data.put(key, val);
     }
@@ -50,9 +51,10 @@ pub const Env = struct {
     }
 
     /// Gets the value of this definition
-    pub fn get(self: *Self, key: []const u8) ?MalType {
+    /// Caller gets ownership of the value
+    pub fn get(self: *Self, alloc: *Allocator, key: []const u8) !?MalType {
         if (self.find(key)) |env| {
-            return env.data.get(key).?.value;
+            return try env.data.get(key).?.value.copy(alloc);
         } else {
             return null;
         }

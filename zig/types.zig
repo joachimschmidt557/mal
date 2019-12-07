@@ -98,17 +98,12 @@ pub const MalType = union(enum) {
         };
     }
 
-    pub fn name(self: Self) []const u8 {
+    /// Returns whether this mal value represents
+    /// an error value
+    pub fn isError(self: Self) bool {
         return switch (self) {
-            .MalNil => "nil",
-            .MalList => "list",
-            .MalString => "string",
-            .MalInteger => "int",
-            .MalBoolean => "bool",
-            .MalSymbol => "symbol",
-            .MalVector => "vector",
-            .MalHashMap => "hashmap",
-            .MalIntegerFunction => "builtin_fn",
+            .MalErrorStr => true,
+            else => false,
         };
     }
 };

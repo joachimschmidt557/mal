@@ -25,16 +25,25 @@ pub const err_defining_non_symbol = MalType{
 pub const err_let_binding_non_list = MalType{
     .MalErrorStr = "let* bindings expect a list",
 };
+pub const err_let_binding_odd = MalType{
+    .MalErrorStr = "let* bindings need an even number of arguments",
+};
 
 fn errSymbolNotFound(name: []const u8, alloc: *Allocator) !MalType {
     const msg = try std.fmt.allocPrint(alloc, "{} not found", name);
     return MalType{ .MalErrorStr = msg };
 }
 
+/// Parses this string into a mal value
+/// This takes ownership of the string
+/// Caller gets ownership of the mal value
 fn READ(s: []const u8, alloc: *Allocator) !MalType {
     return try reader.read_str(s, alloc);
 }
 
+/// Evaluates a mal value
+/// This takes ownership of the mal value
+/// Caller recieves ownership of the result
 fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
     switch (ast) {
         .MalErrorStr => return ast,
@@ -55,7 +64,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
 
                         const key = second.MalSymbol;
                         const value = try EVAL(third, env, alloc);
-                        if (value == .MalErrorStr) return value;
+                        if (value.isError()) return value;
 
                         try env.set(key, try value.copy(alloc));
                         return value;
@@ -80,7 +89,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                                 // Key was already read
                                 const value = try EVAL(itm, new_env, alloc);
                                 // TODO: memory management after error
-                                if (value == .MalErrorStr) return value;
+                                if (value.isError()) return value;
 
                                 try new_env.set(ky, value);
                                 key = null;
@@ -90,6 +99,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                                 key = itm.MalSymbol;
                             }
                         }
+                        if (key != null) return try err_let_binding_odd.copy(alloc);
 
                         return try EVAL(third, new_env, alloc);
                     }
@@ -97,7 +107,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
 
                 // Evaluate list
                 const evaluated = try eval_ast(ast, env, alloc);
-                if (evaluated == .MalErrorStr) return evaluated;
+                if (evaluated.isError()) return evaluated;
 
                 // We can guarantee that the expression is a list
                 // We can guarantee that the list is not empty
@@ -124,16 +134,20 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
     }
 }
 
+/// Converts a mal value into a string
+/// This takes ownership of the mal value
+/// Caller gets ownership of the string
 fn PRINT(x: MalType, alloc: *Allocator) ![]const u8 {
     return try printer.pr_str(x, alloc, true);
 }
 
+/// Recursive helper function for EVAL
 fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
     switch (ast) {
         .MalErrorStr => return ast,
         .MalSymbol => |name| {
-            if (env.get(name)) |val| {
-                return try val.copy(alloc);
+            if (try env.get(alloc, name)) |val| {
+                return val;
             } else {
                 return try errSymbolNotFound(name, alloc);
             }
@@ -144,8 +158,12 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
             var iter = list.iterator();
             while (iter.next()) |value| {
                 const itm = try EVAL(value, env, alloc);
-                // TODO: memory management after error
-                if (itm == .MalErrorStr) return itm;
+                if (itm.isError()) {
+                    var deinit_iter = result.iterator();
+                    while (deinit_iter.next()) |x| x.deinit(alloc);
+                    result.deinit();
+                    return itm;
+                }
 
                 try result.append(itm);
             }
@@ -162,8 +180,14 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
 
             while (iter.next()) |kv| {
                 const itm = try EVAL(kv.value, env, alloc);
-                // TODO: memory management after error
-                if (itm == .MalErrorStr) return itm;
+                if (itm.isError()) {
+                    var deinit_iter = result.iterator();
+                    while (deinit_iter.next()) |deinit_kv| {
+                        deinit_kv.value.deinit(alloc);
+                    }
+                    result.deinit();
+                    return itm;
+                }
 
                 _ = try result.put(kv.key, itm);
             }
