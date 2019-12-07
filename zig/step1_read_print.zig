@@ -23,8 +23,6 @@ fn rep(s: []const u8, alloc: *Allocator) ![]const u8 {
 
 pub fn main() !void {
     const stdout_file = std.io.getStdOut();
-    const stdin_file = std.io.getStdIn();
-    const stdin_stream = &stdin_file.inStream().stream;
 
     var arena = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
     const allocator = &arena.allocator;
@@ -36,7 +34,7 @@ pub fn main() !void {
     while (true) {
         try stdout_file.write("user> ");
 
-        if (std.io.readLineFrom(stdin_stream, &buf)) |line| {
+        if (std.io.readLine(&buf)) |line| {
             var result = rep(line, allocator) catch |err| switch(err) {
                 error.UnfinishedQuote => {
                     try stdout_file.write("error: unbalanced quote\n");
