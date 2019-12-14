@@ -62,11 +62,9 @@ pub fn main() !void {
 
             try stdout_file.write(result);
             try stdout_file.write("\n");
-        } else |err| {
-            switch (err) {
-                error.EndOfStream => break,
-                else => return err,
-            }
+        } else |err| switch (err) {
+            error.EndOfStream => break,
+            else => return err,
         }
     }
 }
