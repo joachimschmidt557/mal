@@ -30,7 +30,7 @@ pub const err_let_binding_odd = MalType{
 };
 
 fn errSymbolNotFound(name: []const u8, alloc: *Allocator) !MalType {
-    const msg = try std.fmt.allocPrint(alloc, "{} not found", name);
+    const msg = try std.fmt.allocPrint(alloc, "{} not found", .{ name });
     return MalType{ .MalErrorStr = msg };
 }
 
@@ -83,8 +83,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
 
                         // Reading in two stages: First read key, then read value
                         var key: ?[]const u8 = null;
-                        var iter = new_bindings.iterator();
-                        while (iter.next()) |itm| {
+                        for (new_bindings.toSlice()) |itm| {
                             if (key) |ky| {
                                 // Key was already read
                                 const value = try EVAL(itm, new_env, alloc);
@@ -153,46 +152,29 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
             }
         },
         .MalList, .MalVector => |list| {
-            var result = std.ArrayList(MalType).init(alloc);
-
-            var iter = list.iterator();
-            while (iter.next()) |value| {
-                const itm = try EVAL(value, env, alloc);
+            for (list.toSlice()) |*value| {
+                const itm = try EVAL(value.*, env, alloc);
                 if (itm.isError()) {
-                    var deinit_iter = result.iterator();
-                    while (deinit_iter.next()) |x| x.deinit(alloc);
-                    result.deinit();
+                    ast.deinit(alloc);
                     return itm;
                 }
-
-                try result.append(itm);
+                value.* = itm;
             }
 
-            return switch (ast) {
-                .MalList => MalType{ .MalList = result },
-                .MalVector => MalType{ .MalVector = result },
-                else => unreachable,
-            };
+            return ast;
         },
         .MalHashMap => |map| {
-            var result = std.StringHashMap(MalType).init(alloc);
             var iter = map.iterator();
-
-            while (iter.next()) |kv| {
-                const itm = try EVAL(kv.value, env, alloc);
+            while (iter.next()) |*kv| {
+                const itm = try EVAL(kv.*.value, env, alloc);
                 if (itm.isError()) {
-                    var deinit_iter = result.iterator();
-                    while (deinit_iter.next()) |deinit_kv| {
-                        deinit_kv.value.deinit(alloc);
-                    }
-                    result.deinit();
+                    ast.deinit(alloc);
                     return itm;
                 }
-
-                _ = try result.put(kv.key, itm);
+                kv.*.value = itm;
             }
 
-            return MalType{ .MalHashMap = result };
+            return ast;
         },
         else => return ast,
     }
