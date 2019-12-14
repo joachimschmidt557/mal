@@ -344,6 +344,7 @@ fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!Ma
 /// Unescapes a string
 pub fn unescape(s: []const u8, alloc: *Allocator) ![]const u8 {
     var result = ArrayList(u8).init(alloc);
+    errdefer result.deinit();
     
     // Remove the double quotes
     // That means we can safely assume that len >= 2

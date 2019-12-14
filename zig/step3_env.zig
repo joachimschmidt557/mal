@@ -107,6 +107,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                 // Evaluate list
                 const evaluated = try eval_ast(ast, env, alloc);
                 if (evaluated.isError()) return evaluated;
+                defer evaluated.deinit(alloc);
 
                 // We can guarantee that the expression is a list
                 // We can guarantee that the list is not empty
@@ -145,6 +146,7 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
     switch (ast) {
         .MalErrorStr => return ast,
         .MalSymbol => |name| {
+            defer ast.deinit(alloc);
             if (try env.get(alloc, name)) |val| {
                 return val;
             } else {
