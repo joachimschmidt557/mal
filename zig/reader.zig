@@ -344,12 +344,12 @@ pub fn unescape(s: []const u8, alloc: *Allocator) ![]const u8 {
     // That means we can safely assume that len >= 2
     try result.appendSlice(s[1..s.len-1]); 
 
-    if (result.count() < 1)
+    if (result.len < 1)
         return result.toSliceConst();
 
     // Assumes len >= 1
     var i: usize = 0;
-    while (i < result.count() - 1) : (i += 1) {
+    while (i < result.len - 1) : (i += 1) {
         if (result.at(i) == '\\') {
             switch (result.at(i + 1)) {
                 'n' => {
@@ -399,7 +399,7 @@ fn read_atom(r: *Reader, alloc: *Allocator) !MalType {
             } else if (std.mem.startsWith(u8, tok, ":")) {
                 // Keywords
                 return MalType{
-                    .MalString = try std.fmt.allocPrint(alloc, "\u{29e}{}", tok[1..])
+                    .MalString = try std.fmt.allocPrint(alloc, "\u{29e}{}", .{ tok[1..] })
                 };
             } else {
                 // Symbols

@@ -64,28 +64,19 @@ fn eval_ast(ast: MalType, env: Env, alloc: *Allocator) EvalError!MalType {
             return error.SymbolNotFound;
         },
         .MalList, .MalVector => |list| {
-            var result = std.ArrayList(MalType).init(alloc);
-
-            var iter = list.iterator();
-            while (iter.next()) |value| {
-                try result.append(try EVAL(value, env, alloc));
+            for (list.toSlice()) |*value| {
+                value.* = try EVAL(value.*, env, alloc);
             }
 
-            return switch (ast) {
-                .MalList => MalType{ .MalList = result },
-                .MalVector => MalType{ .MalVector = result },
-                else => unreachable,
-            };
+            return ast;
         },
         .MalHashMap => |map| {
-            var result = std.StringHashMap(MalType).init(alloc);
             var iter = map.iterator();
-
-            while (iter.next()) |kv| {
-                _ = try result.put(kv.key, try EVAL(kv.value, env, alloc));
+            while (iter.next()) |*kv| {
+                kv.*.value = try EVAL(kv.*.value, env, alloc);
             }
 
-            return MalType{ .MalHashMap = result };
+            return ast;
         },
         else => return ast,
     }

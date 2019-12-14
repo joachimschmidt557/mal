@@ -14,7 +14,7 @@ pub fn escape(s: []const u8, alloc: *Allocator) ![]const u8 {
 
     // String
     var i: usize = 0;
-    while (i < result.count()) : (i += 1) {
+    while (i < result.len) : (i += 1) {
         switch (result.at(i)) {
             '\n' => {
                 result.set(i, '\\');
@@ -50,7 +50,7 @@ pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]
     defer x.deinit(alloc);
 
     switch (x) {
-        .MalNil => return try std.fmt.allocPrint(alloc, "nil"),
+        .MalNil => return try std.fmt.allocPrint(alloc, "nil", .{}),
         .MalErrorStr => |err_str| return try pr_errorstr(err_str, alloc),
         .MalString => |value| {
             if (std.mem.startsWith(u8, value, "\u{29e}")) {
@@ -58,27 +58,27 @@ pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]
             } else if (print_readably) {
                 return try escape(value, alloc);
             } else {
-                return try std.fmt.allocPrint(alloc, "{}", value);
+                return try std.fmt.allocPrint(alloc, "{}", .{ value });
             }
          },
         .MalList => |list| return try pr_seq(list, alloc, SequenceType.List, print_readably),
         .MalVector => |list| return try pr_seq(list, alloc, SequenceType.Vector, print_readably),
         .MalHashMap => |map| return try pr_map(map, alloc, print_readably),
-        .MalInteger => |value| return try std.fmt.allocPrint(alloc, "{}", value),
-        .MalBoolean => |value| if (value) return try std.fmt.allocPrint(alloc, "true") else return try std.fmt.allocPrint(alloc, "false"),
-        .MalSymbol => |value| return try std.fmt.allocPrint(alloc, "{}", value),
-        .MalIntegerFunction => return try std.fmt.allocPrint(alloc, "#<builtin fn>"),
+        .MalInteger => |value| return try std.fmt.allocPrint(alloc, "{}", .{ value }),
+        .MalBoolean => |value| if (value) return try std.fmt.allocPrint(alloc, "true", .{}) else return try std.fmt.allocPrint(alloc, "false", .{}),
+        .MalSymbol => |value| return try std.fmt.allocPrint(alloc, "{}", .{ value }),
+        .MalIntegerFunction => return try std.fmt.allocPrint(alloc, "#<builtin fn>", .{}),
     }
 }
 
 /// Formats an error
 fn pr_errorstr(s: []const u8, alloc: *Allocator) ![]const u8 {
-    return try std.fmt.allocPrint(alloc, "error: {}", s);
+    return try std.fmt.allocPrint(alloc, "error: {}", .{ s });
 }
 
 /// Formats keywords
 fn pr_keyword(s: []const u8, alloc: *Allocator) ![]const u8 {
-    return try std.fmt.allocPrint(alloc, ":{}", s[2..]);
+    return try std.fmt.allocPrint(alloc, ":{}", .{ s[2..] });
 }
 
 /// Formats hash maps
@@ -119,8 +119,7 @@ fn pr_seq(list: std.ArrayList(MalType), alloc: *Allocator, seq_type: SequenceTyp
 
     try result.appendSlice(seq_type.startToken());
     var first_itm = true;
-    var iter = list.iterator();
-    while (iter.next()) |value| {
+    for (list.toSlice()) |value| {
         if (first_itm) {
             first_itm = false;
         } else {

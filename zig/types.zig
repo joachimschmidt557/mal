@@ -44,8 +44,7 @@ pub const MalType = union(enum) {
         switch (self) {
             .MalErrorStr, .MalString, .MalSymbol => |s| alloc.free(s),
             .MalList, .MalVector => |list| {
-                var iter = list.iterator();
-                while (iter.next()) |x| x.deinit(alloc);
+                for (list.toSlice()) |*x| x.deinit(alloc);
                 list.deinit();
             },
             .MalHashMap => |map| {
@@ -73,8 +72,7 @@ pub const MalType = union(enum) {
             .MalList, .MalVector => |l| blk: {
                 var result = ArrayList(MalType).init(alloc);
 
-                var iter = l.iterator();
-                while (iter.next()) |x| {
+                for (l.toSlice()) |x| {
                     try result.append(try x.copy(alloc));
                 }
 
