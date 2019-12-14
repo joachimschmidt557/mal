@@ -281,7 +281,7 @@ pub fn read_form(r: *Reader, alloc: *Allocator) ReadError!MalType {
 /// Reads a hash map starting with the first key
 fn read_map(r: *Reader, alloc: *Allocator) ReadError!MalType {
     var result = std.StringHashMap(MalType).init(alloc);
-    errdefer result.deinit();
+    errdefer (MalType{ .MalHashMap = result }).deinit(alloc);
 
     // Reading in two stages: First read key, then read value
     var key: ?[]const u8 = null;
@@ -320,7 +320,11 @@ fn read_map(r: *Reader, alloc: *Allocator) ReadError!MalType {
 /// Reads a list or a vector starting with the first element
 fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!MalType {
     var result = ArrayList(MalType).init(alloc);
-    errdefer result.deinit();
+    errdefer switch(seq_type) {
+       .List => (MalType{ .MalList = result }).deinit(alloc),
+       .Vector => (MalType{ .MalVector = result }).deinit(alloc),
+    };
+
 
     while (true) {
         if (r.peek()) |tok| {

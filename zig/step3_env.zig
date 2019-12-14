@@ -56,28 +56,36 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                     const symbol = list.at(0).MalSymbol;
                     if (std.mem.eql(u8, symbol, "def!")) {
                         // Change current environment
-                        if (list.len < 3) return try err_missing_operands.copy(alloc);
-                        const second = list.at(1);
-                        const third = list.at(2);
+                        defer ast.deinit(alloc);
+                        if (list.len != 3) return try err_missing_operands.copy(alloc);
+                        const second = try list.at(1).copy(alloc);
+                        const third = try list.at(2).copy(alloc);
 
-                        if (second != .MalSymbol) return try err_defining_non_symbol.copy(alloc);
+                        const key = switch (second) {
+                            .MalSymbol => |sym| sym,
+                             else => return try err_defining_non_symbol.copy(alloc),
+                        };
 
-                        const key = second.MalSymbol;
                         const value = try EVAL(third, env, alloc);
-                        if (value.isError()) return value;
+                        if (value.isError()) {
+                            second.deinit(alloc);
+                        } else {
+                            try env.set(key, try value.copy(alloc));
+                        }
 
-                        try env.set(key, try value.copy(alloc));
                         return value;
                     } else if (std.mem.eql(u8, symbol, "let*")) {
                         // New environment
-                        if (list.len < 3) return try err_missing_operands.copy(alloc);
-                        const second = list.at(1);
-                        const third = list.at(2);
+                        defer ast.deinit(alloc);
+                        if (list.len != 3) return try err_missing_operands.copy(alloc);
+                        const second = try list.at(1).copy(alloc);
+                        const third = try list.at(2).copy(alloc);
 
                         const new_bindings = switch (second) {
                             .MalList, .MalVector => |l| l,
                             else => return try err_let_binding_non_list.copy(alloc),
                         };
+                        defer new_bindings.deinit();
                         const new_env = &Env.init(env, alloc);
                         defer new_env.deinit();
 
