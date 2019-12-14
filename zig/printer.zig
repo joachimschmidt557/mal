@@ -5,11 +5,12 @@ const types = @import("types.zig");
 const SequenceType = types.SequenceType;
 const MalType = types.MalType;
 
-pub const PrintError = error{ OutOfBounds, OutOfMemory };
+pub const PrintError = error{ OutOfMemory };
 
 /// Escapes a string
 pub fn escape(s: []const u8, alloc: *Allocator) ![]const u8 {
     var result = std.ArrayList(u8).init(alloc);
+    errdefer result.deinit();
     try result.appendSlice(s);
 
     // String
@@ -84,6 +85,7 @@ fn pr_keyword(s: []const u8, alloc: *Allocator) ![]const u8 {
 /// Formats hash maps
 fn pr_map(map: std.StringHashMap(MalType), alloc: *Allocator, print_readably: bool) PrintError![]const u8 {
     var result = std.ArrayList(u8).init(alloc);
+    errdefer result.deinit();
 
     try result.append('{');
 
@@ -116,6 +118,7 @@ fn pr_map(map: std.StringHashMap(MalType), alloc: *Allocator, print_readably: bo
 /// Formats lists and vectors
 fn pr_seq(list: std.ArrayList(MalType), alloc: *Allocator, seq_type: SequenceType, print_readably: bool) PrintError![]const u8 {
     var result = std.ArrayList(u8).init(alloc);
+    errdefer result.deinit();
 
     try result.appendSlice(seq_type.startToken());
     var first_itm = true;

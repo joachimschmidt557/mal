@@ -46,6 +46,7 @@ pub const TokenizeError = error{ UnfinishedQuote };
 /// Tokenizes a raw byte slice
 pub fn tokenize(s: []const u8, alloc: *Allocator) ![]Token {
     var result = ArrayList(Token).init(alloc);
+    errdefer result.deinit();
 
     const State = enum {
         TopLevel,
@@ -202,6 +203,7 @@ pub const ReadError = std.mem.Allocator.Error || error{
 
 fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
     var result = ArrayList(MalType).init(alloc);
+    errdefer result.deinit();
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
@@ -215,6 +217,7 @@ fn specialList(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalTyp
 
 fn specialListTwo(r: *Reader, alloc: *Allocator, name: []const u8) ReadError!MalType {
     var result = ArrayList(MalType).init(alloc);
+    errdefer result.deinit();
 
     // If there is nothing left to read, return error
     if (r.peek()) |_| {} else return error.Underflow;
@@ -278,6 +281,7 @@ pub fn read_form(r: *Reader, alloc: *Allocator) ReadError!MalType {
 /// Reads a hash map starting with the first key
 fn read_map(r: *Reader, alloc: *Allocator) ReadError!MalType {
     var result = std.StringHashMap(MalType).init(alloc);
+    errdefer result.deinit();
 
     // Reading in two stages: First read key, then read value
     var key: ?[]const u8 = null;
@@ -316,6 +320,7 @@ fn read_map(r: *Reader, alloc: *Allocator) ReadError!MalType {
 /// Reads a list or a vector starting with the first element
 fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!MalType {
     var result = ArrayList(MalType).init(alloc);
+    errdefer result.deinit();
 
     while (true) {
         if (r.peek()) |tok| {
