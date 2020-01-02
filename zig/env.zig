@@ -14,12 +14,24 @@ pub const Env = struct {
     const Self = @This();
 
     /// Creates a new environment with an outer environment
-    pub fn init(outer: ?*Self, alloc: *Allocator) Self {
+    pub fn init(alloc: *Allocator, outer: ?*Self) Self {
         return Self{
             .allocator = alloc,
             .outer = outer,
             .data = StringHashMap(MalType).init(alloc),
         };
+    }
+
+    pub const BindsError = error{ WrongNumberOfBinds };
+
+    /// Creates a new environment with these bindings
+    pub fn initWithBinds(alloc: *Allocator, outer: ?*Self, binds: []const u8, exprs: []MalType) !Self {
+        var new_env = init(alloc, outer);
+        if (binds.len != exprs.len) return error.WrongNumberOfBinds;
+        for (binds) |i, sym| {
+            try new_env.set(sym, exprs[i]);
+        }
+        return new_env;
     }
 
     /// Destroys this environment (but not outer environment(s))

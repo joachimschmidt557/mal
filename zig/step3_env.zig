@@ -5,6 +5,7 @@ const reader = @import("reader.zig");
 const printer = @import("printer.zig");
 const types = @import("types.zig");
 const MalType = types.MalType;
+const errSymbolNotFound = types.errSymbolNotFound;
 
 const Env = @import("env.zig").Env;
 
@@ -28,11 +29,6 @@ pub const err_let_binding_non_list = MalType{
 pub const err_let_binding_odd = MalType{
     .MalErrorStr = "let* bindings need an even number of arguments",
 };
-
-fn errSymbolNotFound(name: []const u8, alloc: *Allocator) !MalType {
-    const msg = try std.fmt.allocPrint(alloc, "{} not found", .{ name });
-    return MalType{ .MalErrorStr = msg };
-}
 
 /// Parses this string into a mal value
 /// This takes ownership of the string
@@ -86,7 +82,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                             else => return try err_let_binding_non_list.copy(alloc),
                         };
                         defer new_bindings.deinit();
-                        const new_env = &Env.init(env, alloc);
+                        const new_env = &Env.init(alloc, env);
                         defer new_env.deinit();
 
                         // Reading in two stages: First read key, then read value
@@ -207,7 +203,7 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     // REPL environment
-    const repl_env = &Env.init(null, allocator);
+    const repl_env = &Env.init(allocator, null);
     try repl_env.set("+", MalType{ .MalIntegerFunction = add });
     try repl_env.set("-", MalType{ .MalIntegerFunction = sub });
     try repl_env.set("*", MalType{ .MalIntegerFunction = mul });

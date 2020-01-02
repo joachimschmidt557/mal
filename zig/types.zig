@@ -24,6 +24,11 @@ pub const SequenceType = enum {
     }
 };
 
+pub const MalClosure = struct {
+    param_list: ArrayList(MalType),
+    body: MalType,
+};
+
 pub const MalType = union(enum) {
     MalNil: void,
     MalErrorStr: []const u8,
@@ -105,3 +110,8 @@ pub const MalType = union(enum) {
         };
     }
 };
+
+pub fn errSymbolNotFound(name: []const u8, alloc: *Allocator) !MalType {
+    const msg = try std.fmt.allocPrint(alloc, "{} not found", .{ name });
+    return MalType{ .MalErrorStr = msg };
+}
