@@ -1,10 +1,12 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 
 const reader = @import("reader.zig");
 const printer = @import("printer.zig");
 const types = @import("types.zig");
 const MalType = types.MalType;
+const errMsg = types.errMsg;
 
 pub const Env = std.StringHashMap(MalType);
 
@@ -25,24 +27,21 @@ fn EVAL(ast: MalType, env: Env, alloc: *Allocator) EvalError!MalType {
             if (list.len == 0) {
                 return ast;
             } else {
-                const evaluated = try eval_ast(ast, env, alloc);
+                var evaluated = try eval_ast(ast, env, alloc);
 
                 // We can guarantee that the expression is a list
                 // We can guarantee that the list is not empty
-                const l = evaluated.MalList;
+                var l = evaluated.MalList;
                 switch (l.at(0)) {
-                    .MalIntegerFunction => |f| {
-                        if (l.len < 3) return error.MissingOperands;
-                        const second = l.at(1);
-                        const third = l.at(2);
+                    .MalBuiltinFunction => |f| {
+                        _ = l.orderedRemove(0);
 
-                        if (second != .MalInteger) return error.NonIntegerOperands;
-                        if (third != .MalInteger) return error.NonIntegerOperands;
+                        var result: MalType = undefined;
+                        const return_val = try f(alloc, l);
+                        result = return_val.*;
+                        defer alloc.destroy(return_val);
 
-                        const x = second.MalInteger;
-                        const y = third.MalInteger;
-
-                        return MalType{ .MalInteger = f(x, y) };
+                        return result;
                     },
                     else => return error.ApplicationOfNonFunction,
                 }
@@ -52,10 +51,14 @@ fn EVAL(ast: MalType, env: Env, alloc: *Allocator) EvalError!MalType {
     }
 }
 
+/// Converts a mal value into a string
+/// This takes ownership of the mal value
+/// Caller gets ownership of the string
 fn PRINT(x: MalType, alloc: *Allocator) ![]const u8 {
     return try printer.pr_str(x, alloc, true);
 }
 
+/// Recursive helper function for EVAL
 fn eval_ast(ast: MalType, env: Env, alloc: *Allocator) EvalError!MalType {
     switch (ast) {
         .MalSymbol => |name| if (env.get(name)) |kv| {
@@ -86,10 +89,93 @@ fn rep(s: []const u8, env: Env, alloc: *Allocator) ![]const u8 {
     return try PRINT(try EVAL(try READ(s, alloc), env, alloc), alloc);
 }
 
-fn add(x: i64, y: i64) i64 { return x + y; }
-fn sub(x: i64, y: i64) i64 { return x - y; }
-fn mul(x: i64, y: i64) i64 { return x * y; }
-fn div(x: i64, y: i64) i64 { return @divTrunc(x, y); }
+pub fn add(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
+    const result = try alloc.create(MalType);
+
+    if (args.len < 2) {
+        result.* = try errMsg(alloc, "missing operands");
+        return result;
+    }
+    const second = args.at(0);
+    const third = args.at(1);
+
+    if (second != .MalInteger or third != .MalInteger) {
+        result.* = try errMsg(alloc, "expected integer operand");
+        return result;
+    }
+
+    const x = second.MalInteger;
+    const y = third.MalInteger;
+
+    result.* = MalType{ .MalInteger = x + y };
+    return result;
+}
+
+pub fn sub(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
+    const result = try alloc.create(MalType);
+
+    if (args.len < 2) {
+        result.* = try errMsg(alloc, "missing operands");
+        return result;
+    }
+    const second = args.at(0);
+    const third = args.at(1);
+
+    if (second != .MalInteger or third != .MalInteger) {
+        result.* = try errMsg(alloc, "expected integer operand");
+        return result;
+    }
+
+    const x = second.MalInteger;
+    const y = third.MalInteger;
+
+    result.* = MalType{ .MalInteger = x - y };
+    return result;
+}
+
+pub fn mul(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
+    const result = try alloc.create(MalType);
+
+    if (args.len < 2) {
+        result.* = try errMsg(alloc, "missing operands");
+        return result;
+    }
+    const second = args.at(0);
+    const third = args.at(1);
+
+    if (second != .MalInteger or third != .MalInteger) {
+        result.* = try errMsg(alloc, "expected integer operand");
+        return result;
+    }
+
+    const x = second.MalInteger;
+    const y = third.MalInteger;
+
+    result.* = MalType{ .MalInteger = x * y };
+    return result;
+}
+
+pub fn div(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
+    const result = try alloc.create(MalType);
+
+    if (args.len < 2) {
+        result.* = try errMsg(alloc, "missing operands");
+        return result;
+    }
+    const second = args.at(0);
+    const third = args.at(1);
+
+    if (second != .MalInteger or third != .MalInteger) {
+        result.* = try errMsg(alloc, "expected integer operand");
+        return result;
+    }
+
+    const x = second.MalInteger;
+    const y = third.MalInteger;
+
+    result.* = MalType{ .MalInteger = @divTrunc(x, y) };
+    return result;
+}
 
 pub fn main() !void {
     const stdout_file = std.io.getStdOut();
@@ -99,10 +185,10 @@ pub fn main() !void {
 
     // REPL environment
     var repl_env = Env.init(allocator);
-    _ = try repl_env.put("+", MalType{ .MalIntegerFunction = add });
-    _ = try repl_env.put("-", MalType{ .MalIntegerFunction = sub });
-    _ = try repl_env.put("*", MalType{ .MalIntegerFunction = mul });
-    _ = try repl_env.put("/", MalType{ .MalIntegerFunction = div });
+    _ = try repl_env.put("+", MalType{ .MalBuiltinFunction = add });
+    _ = try repl_env.put("-", MalType{ .MalBuiltinFunction = sub });
+    _ = try repl_env.put("*", MalType{ .MalBuiltinFunction = mul });
+    _ = try repl_env.put("/", MalType{ .MalBuiltinFunction = div });
 
     // Buffer for line reading
     var buf = try std.Buffer.initSize(allocator, std.mem.page_size);
