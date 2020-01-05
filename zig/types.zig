@@ -45,7 +45,6 @@ pub const MalType = union(enum) {
     MalSymbol: []const u8,
     MalVector: ArrayList(MalType),
     MalHashMap: StringHashMap(MalType),
-    MalIntegerFunction: fn(x: i64, y: i64) i64,
     MalBuiltinFunction: fn(alloc: *Allocator, args: ArrayList(MalType)) BuiltinFunctionError!*MalType,
     MalFunction: *MalClosure,
 
