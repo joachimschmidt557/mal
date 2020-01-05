@@ -98,7 +98,8 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                                 key = null;
                             } else {
                                 // Read key
-                                if (itm != .MalSymbol) return try err_defining_non_symbol.copy(alloc);
+                                if (itm != .MalSymbol)
+                                    return try err_defining_non_symbol.copy(alloc);
                                 key = itm.MalSymbol;
                             }
                         }
@@ -160,11 +161,11 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
         .MalList, .MalVector => |list| {
             for (list.toSlice()) |*value| {
                 const itm = try EVAL(value.*, env, alloc);
-                if (itm.isError()) {
-                    ast.deinit(alloc);
-                    return itm;
-                }
                 value.* = itm;
+                if (itm.isError()) {
+                    defer ast.deinit(alloc);
+                    return itm.copy(alloc);
+                }
             }
 
             return ast;
@@ -173,11 +174,11 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
             var iter = map.iterator();
             while (iter.next()) |*kv| {
                 const itm = try EVAL(kv.*.value, env, alloc);
-                if (itm.isError()) {
-                    ast.deinit(alloc);
-                    return itm;
-                }
                 kv.*.value = itm;
+                if (itm.isError()) {
+                    defer ast.deinit(alloc);
+                    return itm.copy(alloc);
+                }
             }
 
             return ast;

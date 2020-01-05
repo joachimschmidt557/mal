@@ -3,6 +3,9 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const StringHashMap = std.StringHashMap;
 
+const env = @import("env.zig");
+const Env = env.Env;
+
 pub const SequenceType = enum {
     List,
     Vector,
@@ -27,7 +30,10 @@ pub const SequenceType = enum {
 pub const MalClosure = struct {
     param_list: ArrayList(MalType),
     body: MalType,
+    env: Env,
 };
+
+pub const BuiltinFunctionError = Allocator.Error;
 
 pub const MalType = union(enum) {
     MalNil: void,
@@ -40,6 +46,8 @@ pub const MalType = union(enum) {
     MalVector: ArrayList(MalType),
     MalHashMap: StringHashMap(MalType),
     MalIntegerFunction: fn(x: i64, y: i64) i64,
+    MalBuiltinFunction: fn(alloc: *Allocator, args: ArrayList(MalType)) BuiltinFunctionError!*MalType,
+    MalFunction: *MalClosure,
 
     const Self = @This();
 
@@ -110,6 +118,11 @@ pub const MalType = union(enum) {
         };
     }
 };
+
+pub fn errMsg(alloc: *Allocator, msg: []const u8) !MalType {
+    const msg_copy = try std.mem.dupe(alloc, u8, msg);
+    return MalType{ .MalErrorStr = msg_copy };
+}
 
 pub fn errSymbolNotFound(name: []const u8, alloc: *Allocator) !MalType {
     const msg = try std.fmt.allocPrint(alloc, "{} not found", .{ name });

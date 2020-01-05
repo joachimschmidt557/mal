@@ -69,6 +69,8 @@ pub fn pr_str(x: MalType, alloc: *Allocator, print_readably: bool) PrintError![]
         .MalBoolean => |value| if (value) return try std.fmt.allocPrint(alloc, "true", .{}) else return try std.fmt.allocPrint(alloc, "false", .{}),
         .MalSymbol => |value| return try std.fmt.allocPrint(alloc, "{}", .{ value }),
         .MalIntegerFunction => return try std.fmt.allocPrint(alloc, "#<builtin fn>", .{}),
+        .MalBuiltinFunction => return try std.fmt.allocPrint(alloc, "#<builtin fn>", .{}),
+        .MalFunction => return try std.fmt.allocPrint(alloc, "#<function>", .{}),
     }
 }
 

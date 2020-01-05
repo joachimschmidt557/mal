@@ -26,11 +26,13 @@ pub const Env = struct {
 
     /// Creates a new environment with these bindings
     pub fn initWithBinds(alloc: *Allocator, outer: ?*Self, binds: []const u8, exprs: []MalType) !Self {
-        var new_env = init(alloc, outer);
+        var new_env = Self.init(alloc, outer);
+
         if (binds.len != exprs.len) return error.WrongNumberOfBinds;
         for (binds) |i, sym| {
             try new_env.set(sym, exprs[i]);
         }
+
         return new_env;
     }
 
