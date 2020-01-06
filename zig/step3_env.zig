@@ -84,7 +84,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                             else => return try err_let_binding_non_list.copy(alloc),
                         };
                         defer new_bindings.deinit();
-                        const new_env = &Env.init(alloc, env);
+                        var new_env = Env.init(alloc, env);
                         defer new_env.deinit();
 
                         // Reading in two stages: First read key, then read value
@@ -92,7 +92,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                         for (new_bindings.toSlice()) |itm| {
                             if (key) |ky| {
                                 // Key was already read
-                                const value = try EVAL(itm, new_env, alloc);
+                                const value = try EVAL(itm, &new_env, alloc);
                                 // TODO: memory management after error
                                 if (value.isError()) return value;
 
@@ -107,7 +107,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                         }
                         if (key != null) return try err_let_binding_odd.copy(alloc);
 
-                        return try EVAL(third, new_env, alloc);
+                        return try EVAL(third, &new_env, alloc);
                     }
                 }
 
