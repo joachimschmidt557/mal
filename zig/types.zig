@@ -197,8 +197,22 @@ pub const MalType = union(enum) {
                 else => false,
             },
             .MalHashMap => |val| switch (other) {
-                .MalHashMap => |map| blk: {
-                    break :blk false;
+                .MalHashMap => |other_val| blk: {
+                    if (val.count() == other_val.count()) {
+                        var iter = val.iterator();
+                        while (iter.next()) |kv| {
+                            if (other_val.getValue(kv.key)) |other_v| {
+                                if (!kv.value.eql(other_v)) {
+                                    break :blk false;
+                                }
+                            } else {
+                                break :blk false;
+                            }
+                        }
+                        break :blk true;
+                    } else {
+                        break :blk false;
+                    }
                 },
                 else => false,
             },

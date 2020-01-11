@@ -64,7 +64,11 @@ pub const Env = struct {
     /// Adds or overwrites a definition in this environment
     /// This takes ownership of the key as well as the value
     pub fn set(self: *Self, key: []const u8, val: MalType) !void {
-        _ = try self.data.put(key, val);
+        // If we are overwriting an existing entry, discard that entry
+        if (try self.data.put(key, val)) |kv| {
+            self.allocator.free(kv.key);
+            kv.value.deinit(self.allocator);
+        }
     }
 
     /// Finds the top-most environment containing this definition
