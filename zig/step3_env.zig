@@ -337,13 +337,17 @@ pub fn main() !void {
         try stdout_file.write("user> ");
 
         if (std.io.readLine(&buf)) |line| {
-            var result = rep(line, repl_env, allocator) catch |err| switch(err) {
-                error.UnfinishedQuote => "error: unbalanced quote\n",
-                error.UnbalancedParenthesis => "error: unbalanced parenthesis\n",
-                error.Underflow => "error: underflow\n",
-                error.KeyIsNotString => "error: key is not a string\n",
-                error.UnevenHashMap => "error: odd number of elements in hashmap\n",
-                else => return err,
+            var result = rep(line, repl_env, allocator) catch |err| {
+                const msg = switch (err) {
+                    error.UnfinishedQuote => "error: unbalanced quote\n",
+                    error.UnbalancedParenthesis => "error: unbalanced parenthesis\n",
+                    error.Underflow => "error: underflow\n",
+                    error.KeyIsNotString => "error: key is not a string\n",
+                    error.UnevenHashMap => "error: odd number of elements in hashmap\n",
+                    else => return err,
+                };
+                try stdout_file.write(msg);
+                continue;
             };
             defer allocator.free(result);
 
