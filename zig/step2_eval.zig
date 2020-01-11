@@ -241,42 +241,15 @@ pub fn main() !void {
 
         if (std.io.readLine(&buf)) |line| {
             var result = rep(line, repl_env, allocator) catch |err| switch(err) {
-                error.UnfinishedQuote => {
-                    try stdout_file.write("error: unbalanced quote\n");
-                    continue;
-                },
-                error.UnbalancedParenthesis => {
-                    try stdout_file.write("error: unbalanced parenthesis\n");
-                    continue;
-                },
-                error.Underflow => {
-                    try stdout_file.write("error: underflow\n");
-                    continue;
-                },
-                error.KeyIsNotString => {
-                    try stdout_file.write("error: key is not a string\n");
-                    continue;
-                },
-                error.UnevenHashMap => {
-                    try stdout_file.write("error: odd number of elements in hashmap\n");
-                    continue;
-                },
-                error.SymbolNotFound => {
-                    try stdout_file.write("error: symbol not found\n");
-                    continue;
-                },
-                error.ApplicationOfNonFunction => {
-                    try stdout_file.write("error: trying to apply something else than a function\n");
-                    continue;
-                },
-                error.MissingOperands => {
-                    try stdout_file.write("error: missing operands\n");
-                    continue;
-                },
-                error.NonIntegerOperands => {
-                    try stdout_file.write("error: integer functions expect integer arguments\n");
-                    continue;
-                },
+                error.UnfinishedQuote => "error: unbalanced quote\n",
+                error.UnbalancedParenthesis => "error: unbalanced parenthesis\n",
+                error.Underflow => "error: underflow\n",
+                error.KeyIsNotString => "error: key is not a string\n",
+                error.UnevenHashMap => "error: odd number of elements in hashmap\n",
+                error.SymbolNotFound => "error: symbol not found\n",
+                error.ApplicationOfNonFunction => "error: trying to apply something else than a function\n",
+                error.MissingOperands => "error: missing operands\n",
+                error.NonIntegerOperands => "error: integer functions expect integer arguments\n",
                 else => return err,
             };
             defer allocator.free(result);
