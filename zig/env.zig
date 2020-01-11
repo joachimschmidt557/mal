@@ -55,6 +55,7 @@ pub const Env = struct {
     pub fn deinit(self: *Self) void {
         var iter = self.data.iterator();
         while (iter.next()) |kv| {
+            self.allocator.free(kv.key);
             kv.value.deinit(self.allocator);
         }
         self.data.deinit();

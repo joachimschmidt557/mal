@@ -6,10 +6,14 @@ const reader = @import("reader.zig");
 const printer = @import("printer.zig");
 const types = @import("types.zig");
 const MalType = types.MalType;
+const MalClosure = types.MalClosure;
 const errMsg = types.errMsg;
 const errSymbolNotFound = types.errSymbolNotFound;
 
 const Env = @import("env.zig").Env;
+
+const core = @import("core.zig");
+const ns = core.ns;
 
 pub const EvalError = std.mem.Allocator.Error;
 
@@ -108,6 +112,80 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                         }
 
                         return try EVAL(third, new_env, alloc);
+                    } else if (std.mem.eql(u8, symbol, "do")) {
+                        // Do block
+                        defer ast.deinit(alloc);
+                        if (list.len < 2) return try errMsg(alloc, "do requires at least one item");
+                        var body = try ast.copy(alloc);
+
+                        // Remove the "do" symbol
+                        body.MalList.at(0).deinit(alloc);
+                        _ = body.MalList.orderedRemove(0);
+
+                        // Evaluate and return
+                        const result = try eval_ast(body, env, alloc);
+                        if (result.isError()) return result;
+
+                        defer result.deinit(alloc);
+                        const last_i = result.MalList.len - 1;
+                        return try result.MalList.at(last_i).copy(alloc);
+                    } else if (std.mem.eql(u8, symbol, "if")) {
+                        // if condition
+                        defer ast.deinit(alloc);
+                        if (list.len != 3 and list.len != 4) return try err_missing_operands.copy(alloc);
+                        const second = try list.at(1).copy(alloc);
+
+                        // Evaluate condition
+                        const cond = try EVAL(second, env, alloc);
+                        if (cond.isError()) return cond;
+
+                        const cond_false = (cond == .MalNil) or (cond == .MalBoolean and
+                                                                     cond.MalBoolean == false);
+                        if (!cond_false) {
+                            const third = try list.at(2).copy(alloc);
+                            return try EVAL(third, env, alloc);
+                        } else {
+                            if (list.len == 3) {
+                                return MalType.MalNil;
+                            } else {
+                                const fourth = try list.at(3).copy(alloc);
+                                return try EVAL(fourth, env, alloc);
+                            }
+                        }
+                    } else if (std.mem.eql(u8, symbol, "fn*")) {
+                        // function closure
+                        defer ast.deinit(alloc);
+                        if (list.len != 3) return try err_missing_operands.copy(alloc);
+                        const second = try list.at(1).copy(alloc);
+                        const third = try list.at(2).copy(alloc);
+
+                        defer second.deinit(alloc);
+
+                        const params = switch (second) {
+                            .MalList, .MalVector => |l| l,
+                            else => return try errMsg(alloc, "function parameters must be a list"),
+                        };
+
+                        var param_list = ArrayList([]const u8).init(alloc);
+                        for (params.toSlice()) |p, i| {
+                            if (p != .MalSymbol) {
+                                return try errMsg(alloc, "function parameter must be a symbol");
+                            }
+                            if (std.mem.eql(u8, "&", p.MalSymbol) and i != params.len - 2) {
+                                return try errMsg(alloc, "function varargs must be at the last position of the parameter list");
+                            }
+
+                            try param_list.append((try p.copy(alloc)).MalSymbol);
+                        }
+
+                        const closure = try alloc.create(MalClosure);
+                        closure.* = MalClosure{
+                            .param_list = param_list,
+                            .body = third,
+                            .env = env,
+                        };
+
+                        return MalType{ .MalFunction = closure };
                     }
                 }
 
@@ -126,6 +204,23 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                         defer alloc.destroy(return_val);
 
                         return result;
+                    },
+                    .MalFunction => |closure| {
+                        if (!closure.numberOfArgsValid(l.len))
+                            return try errMsg(alloc, "wrong number of parameters");
+
+                        const new_env = try alloc.create(Env);
+                        new_env.* = try Env.initWithBinds(alloc,
+                                                          closure.env,
+                                                          closure.param_list.toSlice(),
+                                                          l.toSlice());
+                        // TODO: memory management here
+                        // if a function returns a closure for
+                        // example, this new_env must still live until
+                        // this closure is called
+
+                        return try EVAL(try closure.body.copy(alloc),
+                                        new_env, alloc);
                     },
                     else => |x| {
                         x.deinit(alloc);
@@ -195,130 +290,6 @@ fn rep(s: []const u8, env: *Env, alloc: *Allocator) ![]const u8 {
     return try PRINT(try EVAL(try READ(s, alloc), env, alloc), alloc);
 }
 
-pub fn add(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
-    const result = try alloc.create(MalType);
-    defer {
-        for (args.toSlice()) |x| x.deinit(alloc);
-        args.deinit();
-    }
-
-    if (args.len != 2) {
-        result.* = try errMsg(alloc, "missing operands");
-        return result;
-    }
-
-    const x = switch (args.at(0)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-    const y = switch (args.at(1)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-
-    result.* = MalType{ .MalInteger = x + y };
-    return result;
-}
-
-pub fn sub(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
-    const result = try alloc.create(MalType);
-    defer {
-        for (args.toSlice()) |x| x.deinit(alloc);
-        args.deinit();
-    }
-
-    if (args.len != 2) {
-        result.* = try errMsg(alloc, "missing operands");
-        return result;
-    }
-
-    const x = switch (args.at(0)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-    const y = switch (args.at(1)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-
-    result.* = MalType{ .MalInteger = x - y };
-    return result;
-}
-
-pub fn mul(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
-    const result = try alloc.create(MalType);
-    defer {
-        for (args.toSlice()) |x| x.deinit(alloc);
-        args.deinit();
-    }
-
-    if (args.len != 2) {
-        result.* = try errMsg(alloc, "missing operands");
-        return result;
-    }
-
-    const x = switch (args.at(0)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-    const y = switch (args.at(1)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-
-    result.* = MalType{ .MalInteger = x * y };
-    return result;
-}
-
-pub fn div(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
-    const result = try alloc.create(MalType);
-    defer {
-        for (args.toSlice()) |x| x.deinit(alloc);
-        args.deinit();
-    }
-
-    if (args.len != 2) {
-        result.* = try errMsg(alloc, "missing operands");
-        return result;
-    }
-
-    const x = switch (args.at(0)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-    const y = switch (args.at(1)) {
-        .MalInteger => |val| val,
-        else => {
-            result.* = try errMsg(alloc, "expected integer operand");
-            return result;
-        },
-    };
-
-    result.* = MalType{ .MalInteger = @divTrunc(x, y) };
-    return result;
-}
-
 pub fn main() !void {
     const stdout_file = std.io.getStdOut();
 
@@ -328,15 +299,14 @@ pub fn main() !void {
 
     // REPL environment
     const repl_env = &Env.init(allocator, null);
-    try repl_env.set(try std.mem.dupe(allocator, u8, "+"),
-                     MalType{ .MalBuiltinFunction = add });
-    try repl_env.set(try std.mem.dupe(allocator, u8, "-"),
-                     MalType{ .MalBuiltinFunction = sub });
-    try repl_env.set(try std.mem.dupe(allocator, u8, "*"),
-                     MalType{ .MalBuiltinFunction = mul });
-    try repl_env.set(try std.mem.dupe(allocator, u8, "/"),
-                     MalType{ .MalBuiltinFunction = div });
+    for (core.ns) |itm| {
+        try repl_env.set(try std.mem.dupe(allocator, u8, itm.name),
+                         MalType{ .MalBuiltinFunction = itm.val });
+    }
     defer repl_env.deinit();
+
+    // Initialization
+    _ = try rep("(def! not (fn* (a) (if a false true)))", repl_env, allocator);
 
     // Buffer for line reading
     var buf = try std.Buffer.initSize(allocator, std.mem.page_size);
