@@ -10,7 +10,7 @@ clean:
 step1_read_print: reader.zig printer.zig types.zig
 step2_eval: reader.zig printer.zig types.zig
 step3_env: reader.zig printer.zig types.zig env.zig
-step4_if_fn_do: reader.zig printer.zig types.zig env.zig core.zig
+step4_if_fn_do: reader.zig printer.zig types.zig env.zig core.zig rc.zig
 
 %: %.zig
 	zig build-exe $<

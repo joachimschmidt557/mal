@@ -3,6 +3,8 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const StringHashMap = std.StringHashMap;
 
+const Rc = @import("rc.zig").Rc;
+
 const env = @import("env.zig");
 const Env = env.Env;
 
@@ -30,7 +32,7 @@ pub const SequenceType = enum {
 pub const MalClosure = struct {
     param_list: ArrayList([]const u8),
     body: MalType,
-    env: *Env,
+    env: *Rc(Env),
 
     const Self = @This();
 
@@ -87,6 +89,7 @@ pub const MalType = union(enum) {
                     alloc.free(p);
                 closure.param_list.deinit();
                 closure.body.deinit(alloc);
+                closure.env.close();
 
                 alloc.destroy(closure);
             },
@@ -140,7 +143,7 @@ pub const MalType = union(enum) {
                 const result = try alloc.create(MalClosure);
                 result.* = MalClosure{
                     .param_list = param_list,
-                    .env = closure.env,
+                    .env = closure.env.copy(),
                     .body = try closure.body.copy(alloc),
                 };
 
