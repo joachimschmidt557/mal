@@ -5,7 +5,7 @@ const types = @import("types.zig");
 const SequenceType = types.SequenceType;
 const MalType = types.MalType;
 
-pub const PrintError = error{ OutOfMemory };
+pub const PrintError = Allocator.Error;
 
 /// Escapes a string
 pub fn escape(s: []const u8, alloc: *Allocator) ![]const u8 {

@@ -114,15 +114,12 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                 // Evaluate list
                 var evaluated = try eval_ast(ast, env, alloc);
                 if (evaluated.isError()) return evaluated;
-                defer evaluated.deinit(alloc);
 
                 // We can guarantee that the expression is a list
                 // We can guarantee that the list is not empty
                 var l = evaluated.MalList;
-                switch (l.at(0)) {
+                switch (l.orderedRemove(0)) {
                     .MalBuiltinFunction => |f| {
-                        _ = l.orderedRemove(0);
-
                         var result: MalType = undefined;
                         const return_val = try f(alloc, l);
                         result = return_val.*;
@@ -130,7 +127,15 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
 
                         return result;
                     },
-                    else => return try err_application_of_non_function.copy(alloc),
+                    else => |x| {
+                        x.deinit(alloc);
+
+                        // Free parameters
+                        for (l.toSlice()) |y| y.deinit(alloc);
+                        l.deinit();
+
+                        return try err_application_of_non_function.copy(alloc);
+                    },
                 }
             }
         },
@@ -192,21 +197,30 @@ fn rep(s: []const u8, env: *Env, alloc: *Allocator) ![]const u8 {
 
 pub fn add(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
     const result = try alloc.create(MalType);
+    defer {
+        for (args.toSlice()) |x| x.deinit(alloc);
+        args.deinit();
+    }
 
-    if (args.len < 2) {
+    if (args.len != 2) {
         result.* = try errMsg(alloc, "missing operands");
         return result;
     }
-    const second = args.at(0);
-    const third = args.at(1);
 
-    if (second != .MalInteger or third != .MalInteger) {
-        result.* = try errMsg(alloc, "expected integer operand");
-        return result;
-    }
-
-    const x = second.MalInteger;
-    const y = third.MalInteger;
+    const x = switch (args.at(0)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
+    const y = switch (args.at(1)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
 
     result.* = MalType{ .MalInteger = x + y };
     return result;
@@ -214,21 +228,30 @@ pub fn add(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
 
 pub fn sub(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
     const result = try alloc.create(MalType);
+    defer {
+        for (args.toSlice()) |x| x.deinit(alloc);
+        args.deinit();
+    }
 
-    if (args.len < 2) {
+    if (args.len != 2) {
         result.* = try errMsg(alloc, "missing operands");
         return result;
     }
-    const second = args.at(0);
-    const third = args.at(1);
 
-    if (second != .MalInteger or third != .MalInteger) {
-        result.* = try errMsg(alloc, "expected integer operand");
-        return result;
-    }
-
-    const x = second.MalInteger;
-    const y = third.MalInteger;
+    const x = switch (args.at(0)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
+    const y = switch (args.at(1)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
 
     result.* = MalType{ .MalInteger = x - y };
     return result;
@@ -236,21 +259,30 @@ pub fn sub(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
 
 pub fn mul(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
     const result = try alloc.create(MalType);
+    defer {
+        for (args.toSlice()) |x| x.deinit(alloc);
+        args.deinit();
+    }
 
-    if (args.len < 2) {
+    if (args.len != 2) {
         result.* = try errMsg(alloc, "missing operands");
         return result;
     }
-    const second = args.at(0);
-    const third = args.at(1);
 
-    if (second != .MalInteger or third != .MalInteger) {
-        result.* = try errMsg(alloc, "expected integer operand");
-        return result;
-    }
-
-    const x = second.MalInteger;
-    const y = third.MalInteger;
+    const x = switch (args.at(0)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
+    const y = switch (args.at(1)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
 
     result.* = MalType{ .MalInteger = x * y };
     return result;
@@ -258,21 +290,30 @@ pub fn mul(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
 
 pub fn div(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
     const result = try alloc.create(MalType);
+    defer {
+        for (args.toSlice()) |x| x.deinit(alloc);
+        args.deinit();
+    }
 
-    if (args.len < 2) {
+    if (args.len != 2) {
         result.* = try errMsg(alloc, "missing operands");
         return result;
     }
-    const second = args.at(0);
-    const third = args.at(1);
 
-    if (second != .MalInteger or third != .MalInteger) {
-        result.* = try errMsg(alloc, "expected integer operand");
-        return result;
-    }
-
-    const x = second.MalInteger;
-    const y = third.MalInteger;
+    const x = switch (args.at(0)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
+    const y = switch (args.at(1)) {
+        .MalInteger => |val| val,
+        else => {
+            result.* = try errMsg(alloc, "expected integer operand");
+            return result;
+        },
+    };
 
     result.* = MalType{ .MalInteger = @divTrunc(x, y) };
     return result;

@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const StringHashMap = std.StringHashMap;
 
 const types = @import("types.zig");
@@ -22,15 +23,29 @@ pub const Env = struct {
         };
     }
 
-    pub const BindsError = error{ WrongNumberOfBinds };
-
     /// Creates a new environment with these bindings
-    pub fn initWithBinds(alloc: *Allocator, outer: ?*Self, binds: []const u8, exprs: []MalType) !Self {
+    /// Does not take ownership of the bindings or expressions
+    pub fn initWithBinds(alloc: *Allocator, outer: ?*Self, binds: ArrayList([]const u8), exprs: ArrayList(MalType)) !Self {
         var new_env = Self.init(alloc, outer);
 
-        if (binds.len != exprs.len) return error.WrongNumberOfBinds;
-        for (binds) |i, sym| {
-            try new_env.set(sym, exprs[i]);
+        for (binds.toSlice()) |name, i| {
+            if (std.mem.eql(u8, "&", name)) {
+                var l = ArrayList(MalType).init(alloc);
+
+                for (exprs.toSlice()[i..]) |x| {
+                    try l.append(try x.copy(alloc));
+                }
+
+                // When creating closures, we always check for correct varargs
+                const varargs_param_name = try std.mem.dupe(alloc, u8, binds.at(i + 1));
+                try new_env.set(varargs_param_name, MalType{ .MalList = l });
+
+                break;
+            } else {
+                const name_copy = try std.mem.dupe(alloc, u8, name);
+                const expr_copy = try exprs.at(i).copy(alloc);
+                try new_env.set(name_copy, expr_copy);
+            }
         }
 
         return new_env;
