@@ -87,25 +87,20 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                         var new_env = Env.init(alloc, env);
                         defer new_env.deinit();
 
-                        // Reading in two stages: First read key, then read value
-                        var key: ?[]const u8 = null;
-                        for (new_bindings.toSlice()) |itm| {
-                            if (key) |ky| {
-                                // Key was already read
-                                const value = try EVAL(itm, &new_env, alloc);
-                                // TODO: memory management after error
-                                if (value.isError()) return value;
+                        if (new_bindings.len % 2 != 0)
+                            return try err_let_binding_odd.copy(alloc);
 
-                                try new_env.set(ky, value);
-                                key = null;
-                            } else {
-                                // Read key
-                                if (itm != .MalSymbol)
-                                    return try err_defining_non_symbol.copy(alloc);
-                                key = itm.MalSymbol;
-                            }
+                        var i: usize = 0;
+                        while (i < new_bindings.len) : (i += 2) {
+                            const key = switch (new_bindings.at(i)) {
+                                .MalSymbol => |str| str,
+                                else => return try err_defining_non_symbol.copy(alloc),
+                            };
+                            const value = try EVAL(new_bindings.at(i + 1), &new_env, alloc);
+                            if (value.isError()) return value;
+
+                            try new_env.set(key, value);
                         }
-                        if (key != null) return try err_let_binding_odd.copy(alloc);
 
                         return try EVAL(third, &new_env, alloc);
                     }
