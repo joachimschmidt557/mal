@@ -121,8 +121,7 @@ fn EVAL(ast: MalType, env: *Rc(Env), alloc: *Allocator) EvalError!MalType {
                         var body = try ast.copy(alloc);
 
                         // Remove the "do" symbol
-                        body.MalList.at(0).deinit(alloc);
-                        _ = body.MalList.orderedRemove(0);
+                        body.MalList.orderedRemove(0).deinit(alloc);
 
                         // Evaluate and return
                         const result = try eval_ast(body, env.copy(), alloc);
@@ -141,8 +140,9 @@ fn EVAL(ast: MalType, env: *Rc(Env), alloc: *Allocator) EvalError!MalType {
                         const cond = try EVAL(second, env.copy(), alloc);
                         if (cond.isError()) return cond;
 
-                        const cond_false = (cond == .MalNil) or (cond == .MalBoolean and
-                                                                     cond.MalBoolean == false);
+                        const cond_false = (cond == .MalNil) or
+                            (cond == .MalBoolean and cond.MalBoolean == false);
+
                         if (!cond_false) {
                             const third = try list.at(2).copy(alloc);
                             return try EVAL(third, env.copy(), alloc);
@@ -312,7 +312,7 @@ pub fn main() !void {
     repl_env.p.* = Env.init(allocator, null);
     for (core.ns) |itm| {
         try repl_env.p.set(try std.mem.dupe(allocator, u8, itm.name),
-                         MalType{ .MalBuiltinFunction = itm.val });
+                           MalType{ .MalBuiltinFunction = itm.val });
     }
     defer repl_env.close();
 
