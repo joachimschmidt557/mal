@@ -2,6 +2,8 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
+const Rc = @import("rc.zig").Rc;
+
 const reader = @import("reader.zig");
 const printer = @import("printer.zig");
 const types = @import("types.zig");
@@ -11,7 +13,7 @@ const errSymbolNotFound = types.errSymbolNotFound;
 
 const Env = @import("env.zig").Env;
 
-pub const EvalError = std.mem.Allocator.Error;
+pub const EvalError = Allocator.Error;
 
 pub const err_application_of_non_function = MalType{
     .MalErrorStr = "trying to apply something else than a function",
@@ -42,7 +44,9 @@ fn READ(s: []const u8, alloc: *Allocator) !MalType {
 /// Evaluates a mal value
 /// This takes ownership of the mal value
 /// Caller recieves ownership of the result
-fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
+fn EVAL(ast: MalType, env: *Rc(Env), alloc: *Allocator) EvalError!MalType {
+    defer env.close();
+
     switch (ast) {
         .MalErrorStr => return ast,
         .MalList => |list| {
@@ -64,11 +68,11 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                              else => return try err_defining_non_symbol.copy(alloc),
                         };
 
-                        const value = try EVAL(third, env, alloc);
+                        const value = try EVAL(third, env.copy(), alloc);
                         if (value.isError()) {
                             second.deinit(alloc);
                         } else {
-                            try env.set(key, try value.copy(alloc));
+                            try env.p.set(key, try value.copy(alloc));
                         }
 
                         return value;
@@ -85,12 +89,10 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                         };
                         defer new_bindings.deinit();
 
-                        const new_env = try alloc.create(Env);
-                        new_env.* = Env.init(alloc, env);
-                        defer {
-                            new_env.deinit();
-                            alloc.destroy(new_env);
-                        }
+                        const new_env = try Rc(Env).initEmpty(alloc);
+                        new_env.destructor = Env.deinit;
+                        new_env.p.* = Env.init(alloc, env.copy());
+                        defer new_env.close();
 
                         if (new_bindings.len % 2 != 0)
                             return try err_let_binding_odd.copy(alloc);
@@ -101,18 +103,18 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                                 .MalSymbol => |str| str,
                                 else => return try err_defining_non_symbol.copy(alloc),
                             };
-                            const value = try EVAL(new_bindings.at(i + 1), new_env, alloc);
+                            const value = try EVAL(new_bindings.at(i + 1), new_env.copy(), alloc);
                             if (value.isError()) return value;
 
-                            try new_env.set(key, value);
+                            try new_env.p.set(key, value);
                         }
 
-                        return try EVAL(third, new_env, alloc);
+                        return try EVAL(third, new_env.copy(), alloc);
                     }
                 }
 
                 // Evaluate list
-                var evaluated = try eval_ast(ast, env, alloc);
+                var evaluated = try eval_ast(ast, env.copy(), alloc);
                 if (evaluated.isError()) return evaluated;
 
                 // We can guarantee that the expression is a list
@@ -139,7 +141,7 @@ fn EVAL(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
                 }
             }
         },
-        else => return try eval_ast(ast, env, alloc),
+        else => return try eval_ast(ast, env.copy(), alloc),
     }
 }
 
@@ -151,12 +153,14 @@ fn PRINT(x: MalType, alloc: *Allocator) ![]const u8 {
 }
 
 /// Recursive helper function for EVAL
-fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
+fn eval_ast(ast: MalType, env: *Rc(Env), alloc: *Allocator) EvalError!MalType {
+    defer env.close();
+
     switch (ast) {
         .MalErrorStr => return ast,
         .MalSymbol => |name| {
             defer ast.deinit(alloc);
-            if (try env.get(alloc, name)) |val| {
+            if (try env.p.get(alloc, name)) |val| {
                 return val;
             } else {
                 return try errSymbolNotFound(name, alloc);
@@ -164,7 +168,7 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
         },
         .MalList, .MalVector => |list| {
             for (list.toSlice()) |*value| {
-                const itm = try EVAL(value.*, env, alloc);
+                const itm = try EVAL(value.*, env.copy(), alloc);
                 value.* = itm;
                 if (itm.isError()) {
                     defer ast.deinit(alloc);
@@ -177,7 +181,7 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
         .MalHashMap => |map| {
             var iter = map.iterator();
             while (iter.next()) |*kv| {
-                const itm = try EVAL(kv.*.value, env, alloc);
+                const itm = try EVAL(kv.*.value, env.copy(), alloc);
                 kv.*.value = itm;
                 if (itm.isError()) {
                     defer ast.deinit(alloc);
@@ -191,7 +195,7 @@ fn eval_ast(ast: MalType, env: *Env, alloc: *Allocator) EvalError!MalType {
     }
 }
 
-fn rep(s: []const u8, env: *Env, alloc: *Allocator) ![]const u8 {
+fn rep(s: []const u8, env: *Rc(Env), alloc: *Allocator) ![]const u8 {
     return try PRINT(try EVAL(try READ(s, alloc), env, alloc), alloc);
 }
 
@@ -327,16 +331,18 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     // REPL environment
-    const repl_env = &Env.init(allocator, null);
-    try repl_env.set(try std.mem.dupe(allocator, u8, "+"),
-                     MalType{ .MalBuiltinFunction = add });
-    try repl_env.set(try std.mem.dupe(allocator, u8, "-"),
-                     MalType{ .MalBuiltinFunction = sub });
-    try repl_env.set(try std.mem.dupe(allocator, u8, "*"),
-                     MalType{ .MalBuiltinFunction = mul });
-    try repl_env.set(try std.mem.dupe(allocator, u8, "/"),
-                     MalType{ .MalBuiltinFunction = div });
-    defer repl_env.deinit();
+    const repl_env = try Rc(Env).initEmpty(allocator);
+    repl_env.destructor = Env.deinit;
+    repl_env.p.* = Env.init(allocator, null);
+    try repl_env.p.set(try std.mem.dupe(allocator, u8, "+"),
+                       MalType{ .MalBuiltinFunction = add });
+    try repl_env.p.set(try std.mem.dupe(allocator, u8, "-"),
+                       MalType{ .MalBuiltinFunction = sub });
+    try repl_env.p.set(try std.mem.dupe(allocator, u8, "*"),
+                       MalType{ .MalBuiltinFunction = mul });
+    try repl_env.p.set(try std.mem.dupe(allocator, u8, "/"),
+                       MalType{ .MalBuiltinFunction = div });
+    defer repl_env.close();
 
     // Buffer for line reading
     var buf = try std.Buffer.initSize(allocator, std.mem.page_size);
@@ -346,7 +352,7 @@ pub fn main() !void {
         try stdout_file.write("user> ");
 
         if (std.io.readLine(&buf)) |line| {
-            var result = rep(line, repl_env, allocator) catch |err| {
+            var result = rep(line, repl_env.copy(), allocator) catch |err| {
                 const msg = switch (err) {
                     error.UnfinishedQuote => "error: unbalanced quote\n",
                     error.UnbalancedParenthesis => "error: unbalanced parenthesis\n",

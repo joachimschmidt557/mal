@@ -10,7 +10,7 @@ const errMsg = types.errMsg;
 
 pub const Env = std.StringHashMap(MalType);
 
-pub const EvalError = std.mem.Allocator.Error || error{
+pub const EvalError = Allocator.Error || error{
     SymbolNotFound,
     ApplicationOfNonFunction,
     MissingOperands,

@@ -17,7 +17,7 @@ const Env = @import("env.zig").Env;
 const core = @import("core.zig");
 const ns = core.ns;
 
-pub const EvalError = std.mem.Allocator.Error;
+pub const EvalError = Allocator.Error;
 
 pub const err_application_of_non_function = MalType{
     .MalErrorStr = "trying to apply something else than a function",
@@ -95,7 +95,7 @@ fn EVAL(ast: MalType, env: *Rc(Env), alloc: *Allocator) EvalError!MalType {
 
                         const new_env = try Rc(Env).initEmpty(alloc);
                         new_env.destructor = Env.deinit;
-                        new_env.p.* = Env.init(alloc, env.p);
+                        new_env.p.* = Env.init(alloc, env.copy());
                         defer new_env.close();
 
                         if (new_bindings.len % 2 != 0)
@@ -221,7 +221,7 @@ fn EVAL(ast: MalType, env: *Rc(Env), alloc: *Allocator) EvalError!MalType {
                         const new_env = try Rc(Env).initEmpty(alloc);
                         new_env.destructor = Env.deinit;
                         new_env.p.* = try Env.initWithBinds(alloc,
-                                                            closure.env.p,
+                                                            closure.env.copy(),
                                                             closure.param_list.toSlice(),
                                                             l.toSlice());
                         defer new_env.close();

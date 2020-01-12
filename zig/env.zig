@@ -3,19 +3,21 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const StringHashMap = std.StringHashMap;
 
+const Rc = @import("rc.zig").Rc;
+
 const types = @import("types.zig");
 const SequenceType = types.SequenceType;
 const MalType = types.MalType;
 
 pub const Env = struct {
     allocator: *Allocator,
-    outer: ?*Self,
+    outer: ?*Rc(Self),
     data: StringHashMap(MalType),
 
     const Self = @This();
 
     /// Creates a new environment with an outer environment
-    pub fn init(alloc: *Allocator, outer: ?*Self) Self {
+    pub fn init(alloc: *Allocator, outer: ?*Rc(Self)) Self {
         return Self{
             .allocator = alloc,
             .outer = outer,
@@ -25,7 +27,7 @@ pub const Env = struct {
 
     /// Creates a new environment with these bindings
     /// Does not take ownership of the bindings or expressions
-    pub fn initWithBinds(alloc: *Allocator, outer: ?*Self, binds: [][]const u8, exprs: []MalType) !Self {
+    pub fn initWithBinds(alloc: *Allocator, outer: ?*Rc(Self), binds: [][]const u8, exprs: []MalType) !Self {
         var new_env = Self.init(alloc, outer);
 
         for (binds) |name, i| {
@@ -53,6 +55,9 @@ pub const Env = struct {
 
     /// Destroys this environment (but not outer environment(s))
     pub fn deinit(self: *Self) void {
+        if (self.outer) |env|
+            env.close();
+
         var iter = self.data.iterator();
         while (iter.next()) |kv| {
             self.allocator.free(kv.key);
@@ -77,7 +82,7 @@ pub const Env = struct {
             return self;
         } else {
             if (self.outer) |outer| {
-                return outer.find(key);
+                return outer.p.find(key);
             } else {
                 return null;
             }
