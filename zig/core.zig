@@ -264,7 +264,10 @@ fn readably(alloc: *Allocator, args: ArrayList(MalType)) ![]const u8 {
     var output = ArrayList(u8).init(alloc);
 
     for (args.toSlice()) |x, i| {
-        try output.appendSlice(try pr_str(x, alloc, true));
+        const cpy = try pr_str(x, alloc, true);
+        defer alloc.free(cpy);
+
+        try output.appendSlice(cpy);
         if (i != args.len - 1)
             try output.append(' ');
     }
@@ -278,7 +281,10 @@ fn nonReadably(alloc: *Allocator, args: ArrayList(MalType)) ![]const u8 {
     var output = ArrayList(u8).init(alloc);
 
     for (args.toSlice()) |x, i| {
-        try output.appendSlice(try pr_str(x, alloc, false));
+        const cpy = try pr_str(x, alloc, false);
+        defer alloc.free(cpy);
+
+        try output.appendSlice(cpy);
     }
 
     return output.toSliceConst();
@@ -290,7 +296,10 @@ fn nonReadablyWithSpaces(alloc: *Allocator, args: ArrayList(MalType)) ![]const u
     var output = ArrayList(u8).init(alloc);
 
     for (args.toSlice()) |x, i| {
-        try output.appendSlice(try pr_str(x, alloc, false));
+       const cpy =  try pr_str(x, alloc, false);
+       defer alloc.free(cpy);
+
+        try output.appendSlice(cpy);
         if (i != args.len - 1)
             try output.append(' ');
     }
