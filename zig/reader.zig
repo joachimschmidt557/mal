@@ -349,10 +349,10 @@ fn read_list(r: *Reader, alloc: *Allocator, seq_type: SequenceType) ReadError!Ma
 pub fn unescape(s: []const u8, alloc: *Allocator) ![]const u8 {
     var result = ArrayList(u8).init(alloc);
     errdefer result.deinit();
-    
+
     // Remove the double quotes
     // That means we can safely assume that len >= 2
-    try result.appendSlice(s[1..s.len-1]); 
+    try result.appendSlice(s[1..s.len-1]);
 
     if (result.len < 1)
         return result.toSliceConst();

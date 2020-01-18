@@ -103,13 +103,17 @@ fn pr_map(map: std.StringHashMap(MalType), alloc: *Allocator, print_readably: bo
             try result.append(' ');
         }
 
-        // Copying of key necessary because pr_str will
+        // Copying of key and value necessary because pr_str will
         // deinit the value after printing
-        try result.appendSlice(try pr_str(try key.copy(alloc), alloc, print_readably));
+        const key_cpy = try pr_str(try key.copy(alloc), alloc, print_readably);
+        defer alloc.free(key_cpy);
+
+        const val_cpy = try pr_str(try kv.value.copy(alloc), alloc, print_readably);
+        defer alloc.free(val_cpy);
+
+        try result.appendSlice(key_cpy);
         try result.append(' ');
-        // Copying of value necessary because pr_str will
-        // deinit the value after printing
-        try result.appendSlice(try pr_str(try kv.value.copy(alloc), alloc, print_readably));
+        try result.appendSlice(val_cpy);
     }
     try result.append('}');
 
@@ -132,7 +136,10 @@ fn pr_seq(list: std.ArrayList(MalType), alloc: *Allocator, seq_type: SequenceTyp
 
         // Copying of value necessary because pr_str will
         // deinit the value after printing
-        try result.appendSlice(try pr_str(try value.copy(alloc), alloc, print_readably));
+        const cpy = try pr_str(try value.copy(alloc), alloc, print_readably);
+        defer alloc.free(cpy);
+
+        try result.appendSlice(cpy);
     }
     try result.appendSlice(seq_type.endToken());
 
