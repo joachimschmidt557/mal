@@ -26,7 +26,8 @@ pub const Env = struct {
     }
 
     /// Creates a new environment with these bindings
-    /// Does not take ownership of the bindings or expressions
+    /// Does not take ownership of the bindings
+    /// Takes ownership of the expressions
     pub fn initWithBinds(alloc: *Allocator, outer: ?*Rc(Self), binds: [][]const u8, exprs: []MalType) !Self {
         var new_env = Self.init(alloc, outer);
 
@@ -35,7 +36,7 @@ pub const Env = struct {
                 var l = ArrayList(MalType).init(alloc);
 
                 for (exprs[i..]) |x| {
-                    try l.append(try x.copy(alloc));
+                    try l.append(x);
                 }
 
                 // When creating closures, we always check for correct varargs
@@ -45,7 +46,7 @@ pub const Env = struct {
                 break;
             } else {
                 const name_copy = try std.mem.dupe(alloc, u8, name);
-                const expr_copy = try exprs[i].copy(alloc);
+                const expr_copy = exprs[i];
                 try new_env.set(name_copy, expr_copy);
             }
         }

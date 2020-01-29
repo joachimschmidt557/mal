@@ -24,8 +24,7 @@ fn rep(s: []const u8, alloc: *Allocator) ![]const u8 {
 pub fn main() !void {
     const stdout_file = std.io.getStdOut();
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
-    const allocator = &arena.allocator;
+    const allocator = std.heap.c_allocator;
 
     // Buffer for line reading
     var buf = try std.Buffer.initSize(allocator, std.mem.page_size);

@@ -222,8 +222,7 @@ pub fn div(alloc: *Allocator, args: ArrayList(MalType)) !*MalType {
 pub fn main() !void {
     const stdout_file = std.io.getStdOut();
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
-    const allocator = &arena.allocator;
+    const allocator = std.heap.c_allocator;
 
     // REPL environment
     var repl_env = Env.init(allocator);

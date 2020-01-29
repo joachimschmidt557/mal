@@ -209,11 +209,7 @@ fn EVAL(ast: MalType, env: *Rc(Env), alloc: *Allocator) EvalError!MalType {
                     },
                     .MalFunction => |closure| {
                         defer (MalType{ .MalFunction = closure }).deinit(alloc);
-                        defer {
-                            // Free parameters
-                            for (l.toSlice()) |y| y.deinit(alloc);
-                            l.deinit();
-                        }
+                        defer l.deinit();
 
                         if (!closure.numberOfArgsValid(l.len))
                             return try errMsg(alloc, "wrong number of parameters");
@@ -302,9 +298,7 @@ fn rep(s: []const u8, env: *Rc(Env), alloc: *Allocator) ![]const u8 {
 pub fn main() !void {
     const stdout_file = std.io.getStdOut();
 
-    //var arena = std.heap.ArenaAllocator.init(std.heap.direct_allocator);
-    //const allocator = &arena.allocator;
-    const allocator = std.heap.page_allocator;
+    const allocator = std.heap.c_allocator;
 
     // REPL environment
     const repl_env = try Rc(Env).initEmpty(allocator);
@@ -317,7 +311,7 @@ pub fn main() !void {
     defer repl_env.close();
 
     // Initialization
-    _ = try rep("(def! not (fn* (a) (if a false true)))", repl_env.copy(), allocator);
+    // _ = try rep("(def! not (fn* (a) (if a false true)))", repl_env.copy(), allocator);
 
     // Buffer for line reading
     var buf = try std.Buffer.initSize(allocator, std.mem.page_size);
